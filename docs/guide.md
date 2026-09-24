@@ -79,6 +79,28 @@ The bundled skill instructs agents to load context before drafting/editing, sear
 
 ## Completion
 
+Install completion setup explicitly after installing the executable:
+
+```sh
+bs completion install                   # Detect from $SHELL; preview and confirm
+bs completion install --shell zsh       # Override detection
+bs completion install --dry-run         # Preview without writing or prompting
+bs completion install --yes             # Approve without prompting (scripts/CI)
+bs completion uninstall                 # Preview and confirm managed removal
+```
+
+Automatic setup supports Bash, Zsh and Fish. It targets one shell, not every installed shell. If `$SHELL` differs from the shell you are currently running, pass `--shell`.
+
+- **Bash:** appends a managed block to `~/.bashrc`. Login shells must already source `.bashrc` from their profile; the installer does not edit profiles.
+- **Zsh:** appends a managed block to `$ZDOTDIR/.zshrc` (otherwise `~/.zshrc`). The block initializes `compinit` only if `compdef` is not already available, then loads the completion script.
+- **Fish:** writes a managed `bs.fish` under `$XDG_CONFIG_HOME/fish/completions` (otherwise `~/.config/fish/completions`). Rerun installation after upgrading to refresh this generated file.
+
+Start a new shell afterward: an executable cannot update completion in its parent shell. `bs context <Tab>` should now suggest shelves; an fzf completion UI can still display the suggestions.
+
+Repeated installation does not duplicate managed setup. Existing exact Bash/Zsh activation lines from the manual instructions below are recognized and left alone. Uninstall removes only managed blocks/files, not manual or package-manager setup. Symlinked dotfiles and configuration directories are supported: the preview shows the resolved target, changes update that target, and links remain intact. Uninstall leaves a symlinked Fish target empty rather than breaking its link. Broken/cyclic links, non-file targets, existing nonempty unmanaged Fish files, and malformed markers are rejected with an error rather than overwritten. Unrelated rc content and permissions are preserved (a missing final newline is added when appending). No bitshelf store or agent skill is initialized or installed. `--json` is not supported for completion commands.
+
+For manual setup, script generation remains available:
+
 ```sh
 # bash startup
 source <(bs completion --shell bash)

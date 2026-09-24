@@ -27,4 +27,4 @@
 - [`bs context <SHELF>`](/reference/context.md)
 - [`bs validate [SHELF]`](/reference/validate.md)
 - [`bs prune [--dry-run] [SHELF]`](/reference/prune.md)
-- [`bs completion <--shell <SHELL>>`](/reference/completion.md)
+- [`bs completion [FLAGS] [ACTION]`](/reference/completion.md)

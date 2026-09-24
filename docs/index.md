@@ -5,7 +5,8 @@
 A local Markdown-first store for reusable notes, snippets, prompts, and temporary handoffs. People and agents use the same files and the same `bs` executable.
 
 ```sh
-cargo install --path . --locked
+cargo install --path . --locked && bs completion install
+# Start a new shell to activate completion.
 bs init --store ~/bitshelf --editor code
 bs add notes --title 'Release checklist' --file checklist.md
 bs search 'release' --json

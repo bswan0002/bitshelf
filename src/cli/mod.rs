@@ -130,11 +130,21 @@ pub struct Prune {
     #[usage(long)]
     pub dry_run: bool,
 }
-/// Print a self-contained runtime shell completion script
+/// Generate completions or install/uninstall shell setup
 #[derive(Args)]
 pub struct Completion {
+    /// Omit to print a script; install/uninstall support bash, zsh and fish
+    #[usage(choices("install", "uninstall"))]
+    pub action: Option<String>,
+    /// Shell to configure; install/uninstall default to SHELL
     #[usage(long, choices("bash", "zsh", "fish", "elvish", "nu", "powershell"))]
-    pub shell: String,
+    pub shell: Option<String>,
+    /// Preview install/uninstall without changing files
+    #[usage(long)]
+    pub dry_run: bool,
+    /// Approve install/uninstall without prompting
+    #[usage(long)]
+    pub yes: bool,
 }
 fn candidates(
     bits: bool,

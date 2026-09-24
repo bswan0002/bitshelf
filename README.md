@@ -9,7 +9,8 @@ A local, Markdown-first store for notes, snippets, prompts, and handoffs. The ex
 Install a current stable [Rust toolchain](https://rustup.rs), then:
 
 ```sh
-cargo install --path . --locked
+cargo install --path . --locked && bs completion install
+# Start a new shell to activate completion.
 bs init --store ~/bitshelf --editor code
 bs shelf add ui --description 'Reusable UI' --required title,tags
 bs add ui --title 'Command menu' --tags react --file component.md
@@ -20,16 +21,15 @@ bs open ui/command-menu
 
 `bs init` without arguments offers terminal setup, using `$VISUAL` or `$EDITOR` automatically when set. `bs add --interactive` prompts for metadata and opens a draft; recognized GUI editors get a waiting flag automatically. `bs open --pick` provides filtered multiselection.
 
-Shell setup (no separate Usage executable needed):
+Shell setup detects `$SHELL` (Bash, Zsh or Fish), previews changes, and asks before writing. No separate Usage executable is needed:
 
 ```sh
-# bash: add to ~/.bashrc
-source <(bs completion --shell bash)
-# zsh: add to ~/.zshrc, after compinit
-eval "$(bs completion --shell zsh)"
-# fish
-bs completion --shell fish > ~/.config/fish/completions/bs.fish
+bs completion install --dry-run
+bs completion install --shell zsh  # Override detection
+bs completion uninstall           # Remove only managed setup
 ```
+
+Use `--yes` to approve without prompting. Restart your shell afterward; `bs context <Tab>` suggests available shelves. Installation is safe to repeat and does not install the agent skill. See [completion setup](docs/guide.md#completion) for paths, limitations and manual activation.
 
 ## Agent workflow
 

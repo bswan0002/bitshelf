@@ -351,4 +351,6 @@ fn dynamic_completion_uses_current_store_and_override() {
     assert!(!complete("show notes/").contains("notes/fresh"));
     f.ok(&["shelf", "add", "ui"]);
     assert!(complete("search x --shelf u").contains("ui"));
+    assert!(complete("context ").contains("ui"));
+    assert!(complete("context n").contains("notes"));
 }

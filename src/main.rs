@@ -1,5 +1,6 @@
 mod bit;
 mod cli;
+mod completion;
 mod config;
 mod context;
 mod editor;
@@ -49,14 +50,8 @@ fn main() {
 fn run(args: Bs) -> Result<()> {
     let json_output = args.json;
     if let Commands::Completion(c) = &args.command {
-        usage_check(!json_output, "completion emits a shell script, not JSON")?;
-        print!(
-            "{}",
-            Bs::completion_script(
-                usage::complete::Shell::from_name(&c.shell).context("unsupported shell")?
-            )
-        );
-        return Ok(());
+        usage_check(!json_output, "completion does not support --json")?;
+        return completion::run(c);
     }
     let path = config::config_path(args.config.as_deref())?;
     if let Commands::Init(mut c) = args.command {

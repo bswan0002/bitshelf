@@ -2,7 +2,13 @@
 
 ## Available now: source installation
 
-Install stable Rust and run `cargo install --path . --locked` in this checkout. Repeat after updating the checkout to upgrade. The executable is `bs`, not `bitshelf`. No Node.js or Usage CLI is needed to run it.
+Install stable Rust using [rustup](https://rustup.rs), then run in this checkout:
+
+```sh
+cargo install --path . --locked && bs completion install
+```
+
+The completion installer previews changes and asks for confirmation. Start a new shell afterward. Repeat after updating the checkout to upgrade. The executable is `bs`, not `bitshelf`. No Node.js or Usage CLI is needed to run it. See [completion setup](guide.md#completion) for shell overrides, dry runs and uninstall.
 
 Binary releases and a personal Homebrew tap are **prepared but not provisioned by this prototype**. Do not assume the following release routes are live until the maintainer publishes a tag and configures the tap.
 
@@ -11,12 +17,12 @@ Binary releases and a personal Homebrew tap are **prepared but not provisioned b
 After release provisioning:
 
 ```sh
-brew install bswan0002/tap/bitshelf
+brew install bswan0002/tap/bitshelf && bs completion install
 bs --version
 brew upgrade bitshelf
 ```
 
-The formula installs `bs`, a man page, and bash/zsh/fish completions. Users activate their shell's completion system separately.
+The formula installs `bs`, a man page, and bash/zsh/fish completions. `bs completion install` explicitly registers user-level completion setup; it is optional if your shell already loads Homebrew's completions. Start a new shell after setup. Uninstalling user-level setup does not remove Homebrew's completion files.
 
 Alternatively download the archive matching your platform from GitHub Releases, verify it against `SHA256SUMS` (`sha256sum` on Linux or `shasum -a 256` on macOS), extract it, and copy `bs` to a directory on PATH. Archives also contain the man page, completions, and skill. Updating means replacing those files with a verified newer release. There is no self-update command.
 
