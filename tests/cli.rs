@@ -867,7 +867,14 @@ fn invalid_shelf_config_fails_even_when_empty() {
         ] {
             let out = f.run(&args);
             assert!(!out.status.success(), "{args:?}: {text}");
-            assert!(String::from_utf8_lossy(&out.stderr).contains("bs.toml"));
+            assert!(
+                format!(
+                    "{}{}",
+                    String::from_utf8_lossy(&out.stdout),
+                    String::from_utf8_lossy(&out.stderr)
+                )
+                .contains("bs.toml")
+            );
         }
     }
 }
@@ -906,5 +913,278 @@ fn refuses_symlinked_bits_directories_and_shelf_configs() {
     assert_eq!(
         fs::read_to_string(external.path().join("bs.toml")).unwrap(),
         "required = []"
+    );
+}
+
+#[test]
+fn editor_does_not_hold_store_lock_and_commit_reloads_state() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes", "--title", "Editing"]);
+    let script = f._temp.path().join("editor.sh");
+    fs::write(&script, format!(
+        "set -eu\n'{}' --config '{}' add notes --title Parallel\n'{}' --config '{}' sync\nprintf '\\neditor content' >> \"$1\"\n",
+        env!("CARGO_BIN_EXE_bs"), f.config.display(),
+        env!("CARGO_BIN_EXE_bs"), f.config.display(),
+    )).unwrap();
+    fs::write(
+        &f.config,
+        format!(
+            "store = '{}'\neditor = ['/bin/sh', '{}']\n",
+            f.root.display(),
+            script.display(),
+        ),
+    )
+    .unwrap();
+    f.ok(&["edit", "notes/editing"]);
+    assert!(
+        fs::read_to_string(f.bit_path("notes/editing"))
+            .unwrap()
+            .ends_with("editor content")
+    );
+    let state: Value =
+        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
+    assert!(state["entries"]["notes/parallel"].is_object());
+    assert!(state["entries"]["notes/editing"].is_object());
+    assert_eq!(
+        f.json(&["sync", "--json"])["results"][1]["baselined"],
+        false
+    );
+}
+
+#[test]
+fn sync_forgets_missing_paths_without_changing_live_history() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes", "--title", "Deleted"]);
+    f.ok(&["add", "notes", "--title", "Live"]);
+    f.ok(&["shelf", "add", "removed"]);
+    f.ok(&["add", "removed", "--title", "Old"]);
+    let state_path = f.root.join(".bitshelf/state.json");
+    let before = fs::read(&state_path).unwrap();
+    let tracked: Value = serde_json::from_slice(&before).unwrap();
+    fs::remove_file(f.bit_path("notes/deleted")).unwrap();
+    fs::remove_dir_all(f.root.join("removed")).unwrap();
+    f.ok(&["sync", "notes", "--dry-run"]);
+    assert_eq!(fs::read(&state_path).unwrap(), before);
+    // Scoped sync also retires records for definitively absent paths elsewhere.
+    f.ok(&["sync", "notes"]);
+    let state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    assert!(state["entries"]["notes/deleted"].is_null());
+    assert!(state["entries"]["removed/old"].is_null());
+    assert_eq!(
+        state["entries"]["notes/live"],
+        tracked["entries"]["notes/live"]
+    );
+    f.write(
+        "notes/deleted",
+        "---\ncreated: 2001-01-01T00:00:00Z\nupdated: 2002-01-01T00:00:00Z\n---\nreplacement",
+    );
+    let result = f.json(&["sync", "notes", "--json"]);
+    assert_eq!(result["results"][0]["baselined"], true);
+    assert!(
+        fs::read_to_string(f.bit_path("notes/deleted"))
+            .unwrap()
+            .contains("created: 2001-01-01T00:00:00Z")
+    );
+}
+
+#[test]
+fn rename_sync_and_rename_back_starts_fresh_tracking() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes", "--title", "Original"]);
+    fs::rename(f.bit_path("notes/original"), f.bit_path("notes/moved")).unwrap();
+    assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
+    fs::rename(f.bit_path("notes/moved"), f.bit_path("notes/original")).unwrap();
+    assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
+    let state: Value =
+        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
+    assert_eq!(state["entries"].as_object().unwrap().len(), 1);
+    assert!(state["entries"]["notes/original"].is_object());
+}
+
+#[test]
+fn atomic_external_save_preserves_history_and_detects_changes() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes", "--title", "Atomic"]);
+    let path = f.bit_path("notes/atomic");
+    let before = f.json(&["list", "--json"])[0]["metadata"].clone();
+    let replacement = f._temp.path().join("replacement.md");
+    fs::write(
+        &replacement,
+        format!("{}new body", fs::read_to_string(&path).unwrap()),
+    )
+    .unwrap();
+    fs::rename(replacement, &path).unwrap();
+    let synced = f.json(&["sync", "--json"]);
+    assert_eq!(synced["results"][0]["baselined"], false);
+    assert_eq!(synced["results"][0]["changed"], true);
+    let after = f.json(&["list", "--json"])[0]["metadata"].clone();
+    assert_eq!(after["created"], before["created"]);
+    assert_ne!(after["updated"], before["updated"]);
+}
+
+#[test]
+fn prune_forgets_removed_bits_and_respects_lock() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
+    f.write(
+        "tmp/old",
+        "---\ncreated: 2000-01-01T00:00:00Z\nexpires: 2000-01-02T00:00:00Z\n---\nold",
+    );
+    f.ok(&["sync"]);
+    let state_path = f.root.join(".bitshelf/state.json");
+    let before = fs::read(&state_path).unwrap();
+    let lock = f.root.join(".bitshelf/state.lock");
+    fs::write(&lock, "another command").unwrap();
+    f.ok(&["prune", "--dry-run"]);
+    assert!(!f.run(&["prune"]).status.success());
+    assert!(f.bit_path("tmp/old").exists());
+    assert_eq!(fs::read(&state_path).unwrap(), before);
+    fs::remove_file(lock).unwrap();
+    f.ok(&["prune"]);
+    let state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    assert!(state["entries"]["tmp/old"].is_null());
+    f.write("tmp/old", "replacement");
+    assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
+}
+
+#[cfg(unix)]
+#[test]
+fn validation_reports_links_without_following_them_and_checks_other_bits() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let outside = tempfile::tempdir().unwrap();
+    fs::write(outside.path().join("victim.md"), "outside").unwrap();
+    symlink(outside.path(), f.root.join("linked-shelf")).unwrap();
+    symlink("missing", f.root.join("dangling-shelf")).unwrap();
+    symlink(
+        outside.path().join("victim.md"),
+        f.bit_path("notes/external"),
+    )
+    .unwrap();
+    f.write("notes/regular", "regular");
+    f.write("notes/invalid", "---\ntitle: []\n---\nbad");
+    symlink("regular.md", f.bit_path("notes/internal")).unwrap();
+    symlink("missing", f.bit_path("notes/dangling")).unwrap();
+    symlink("bits/regular.md", f.root.join("notes/SHELF.md")).unwrap();
+    for (shelf, field) in [("linked-bits", "bits"), ("linked-config", "bs.toml")] {
+        f.ok(&["shelf", "add", shelf]);
+        let path = f.root.join(shelf).join(field);
+        if field == "bits" {
+            fs::remove_dir(&path).unwrap();
+        } else {
+            fs::remove_file(&path).unwrap();
+        }
+        symlink("missing", path).unwrap();
+    }
+    // Helper symlinks are unmanaged, not traversed or rejected.
+    fs::create_dir(f.root.join("notes/scripts")).unwrap();
+    symlink(outside.path(), f.root.join("notes/scripts/helper")).unwrap();
+    let out = f.run(&["validate", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let rows = rows.as_array().unwrap();
+    assert_eq!(
+        rows.iter()
+            .filter(|r| r["errors"].to_string().contains("refusing symlink"))
+            .count(),
+        8
+    );
+    assert!(
+        rows.iter()
+            .any(|r| r["id"] == "notes/regular" && r["valid"] == true)
+    );
+    assert!(
+        rows.iter()
+            .any(|r| r["id"] == "notes/invalid" && r["valid"] == false)
+    );
+    assert_eq!(
+        fs::read_to_string(outside.path().join("victim.md")).unwrap(),
+        "outside"
+    );
+    let scoped = f.run(&["validate", "notes", "--json"]);
+    assert_eq!(scoped.status.code(), Some(1));
+    let explicit = f.run(&["validate", "linked-shelf", "--json"]);
+    assert_eq!(explicit.status.code(), Some(1));
+    let rows: Value = serde_json::from_slice(&explicit.stdout).unwrap();
+    assert!(
+        rows[0]["errors"][0]
+            .as_str()
+            .unwrap()
+            .contains("refusing symlink")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn explicit_symlink_store_root_is_supported() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let root_link = f._temp.path().join("root-link");
+    symlink(&f.root, &root_link).unwrap();
+    fs::write(
+        &f.config,
+        format!("store = '{}'\neditor = ['true']\n", root_link.display()),
+    )
+    .unwrap();
+    f.ok(&["add", "notes", "--title", "Safe"]);
+    f.ok(&["sync"]);
+    f.ok(&["edit", "notes/safe", "--title", "Updated"]);
+    f.ok(&["validate"]);
+}
+
+#[test]
+fn lifecycle_commands_do_not_recreate_a_missing_store() {
+    let f = Fixture::new();
+    fs::remove_dir_all(&f.root).unwrap();
+    for args in [vec!["prune"], vec!["sync"], vec!["sync", "--dry-run"]] {
+        assert!(!f.run(&args).status.success());
+        assert!(!f.root.exists());
+    }
+}
+
+#[test]
+fn prune_during_editor_session_cannot_resurrect_a_bit() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
+    f.write(
+        "tmp/expired",
+        "---\nexpires: 2000-01-01T00:00:00Z\n---\nold",
+    );
+    f.ok(&["sync"]);
+    let script = f._temp.path().join("editor.sh");
+    fs::write(
+        &script,
+        format!(
+            "set -eu\n'{}' --config '{}' prune tmp\nprintf '\\nrecover me' >> \"$1\"\n",
+            env!("CARGO_BIN_EXE_bs"),
+            f.config.display(),
+        ),
+    )
+    .unwrap();
+    fs::write(
+        &f.config,
+        format!(
+            "store = '{}'\neditor = ['/bin/sh', '{}']\n",
+            f.root.display(),
+            script.display(),
+        ),
+    )
+    .unwrap();
+    let out = f.run(&["edit", "tmp/expired"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("draft preserved at"));
+    assert!(!f.bit_path("tmp/expired").exists());
+    let state: Value =
+        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
+    assert!(state["entries"]["tmp/expired"].is_null());
+    let drafts: Vec<_> = fs::read_dir(f.root.join("tmp/bits"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .collect();
+    assert_eq!(drafts.len(), 1);
+    assert!(
+        fs::read_to_string(&drafts[0])
+            .unwrap()
+            .ends_with("recover me")
     );
 }

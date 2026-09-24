@@ -36,6 +36,11 @@ impl Drop for Lock {
 }
 impl State {
     pub fn load(store: &Store, write: bool) -> Result<Self> {
+        ensure!(
+            store.config.store.is_dir(),
+            "store does not exist: {}",
+            store.config.store.display()
+        );
         let dir = store.config.store.join(".bitshelf");
         store.safe(&dir)?;
         let lock = if write {
@@ -43,7 +48,7 @@ impl State {
             let path = dir.join("state.lock");
             store.safe(&path)?;
             let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&path)
-                .with_context(|| format!("cannot lock {}; another add/edit/sync may be running. If a process crashed, remove this lock only after confirming none is running", path.display()))?;
+                .with_context(|| format!("cannot lock {}; another add/edit/sync/prune may be running. If a process crashed, remove this lock only after confirming none is running", path.display()))?;
             let lock = Lock(path);
             writeln!(file, "{}", std::process::id())?;
             Some(lock)
@@ -62,12 +67,48 @@ impl State {
             Some(text) => serde_json::from_str(text).context("invalid lifecycle state; restore .bitshelf/state.json from backup or remove it and run bs sync to re-baseline")?,
         };
         let original = source.unwrap_or_default();
-        Ok(Self {
+        let mut state = Self {
             path,
             original,
             data,
             _lock: lock,
-        })
+        };
+        state.forget_missing(store)?;
+        Ok(state)
+    }
+    // Absence ends an identifier's history. Do not infer deletion from a
+    // permissions error or a refused symlink, and never follow a stored path.
+    fn forget_missing(&mut self, store: &Store) -> Result<()> {
+        let mut missing = vec![];
+        for id in self.data.entries.keys() {
+            let (shelf, slug) = id
+                .split_once('/')
+                .context("invalid identifier in lifecycle state")?;
+            crate::config::name(shelf)?;
+            crate::config::name(slug)?;
+            let path = store
+                .config
+                .store
+                .join(shelf)
+                .join("bits")
+                .join(format!("{slug}.md"));
+            if store.safe(&path).is_err() {
+                continue;
+            }
+            match fs::symlink_metadata(&path) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => missing.push(id.clone()),
+                Err(e) => return Err(e).with_context(|| format!("checking tracked bit {id}")),
+                Ok(meta) if !meta.is_file() => missing.push(id.clone()),
+                Ok(_) => (),
+            }
+        }
+        for id in missing {
+            self.forget(&id);
+        }
+        Ok(())
+    }
+    pub fn forget(&mut self, id: &str) {
+        self.data.entries.remove(id);
     }
     pub fn get(&self, id: &str) -> Option<&Entry> {
         self.data.entries.get(id)
@@ -80,6 +121,11 @@ impl State {
     }
     pub fn set(&mut self, id: &str, entry: Entry) {
         self.data.entries.insert(id.into(), entry);
+    }
+    pub fn save_after_bit(&self, store: &Store, id: &str) -> Result<()> {
+        self.save(store).with_context(|| format!(
+            "bit {id} was saved, but tracking state could not be saved; fix the error and run bs sync (do not repeat bs add)",
+        ))
     }
     pub fn save(&self, store: &Store) -> Result<()> {
         let text = serde_json::to_string_pretty(&self.data)?;
@@ -227,7 +273,9 @@ pub fn sync(store: &Store, shelf: Option<&str>, dry_run: bool) -> Result<Vec<Syn
         results.push(result);
     }
     if !dry_run {
-        state.save(store)?;
+        state.save(store).context(
+            "sync may have updated bit files, but tracking state could not be saved; fix the error and rerun bs sync",
+        )?;
     }
     Ok(results)
 }
@@ -244,13 +292,13 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         "bs edit --json requires --file, --stdin, --title or --tags (no editor)",
     )?;
     let path = store.bit_path(&args.id)?;
-    let mut state = State::load(store, true)?;
     let original = fs::read_to_string(&path)?;
-    // Establish a baseline before editing, even for imported/legacy files.
-    let previous = match state.get(&args.id) {
-        Some(e) => e.clone(),
-        None => baseline(&original, Utc::now())?,
-    };
+    // Record discovery time before opening the editor, without holding a lock.
+    let initial = State::load(store, false)?
+        .get(&args.id)
+        .cloned()
+        .map(Ok)
+        .unwrap_or_else(|| baseline(&original, Utc::now()))?;
     let mut draft = None;
     let candidate = if interactive {
         let mut file = tempfile::Builder::new()
@@ -267,8 +315,12 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
             crate::editor::Purpose::Edit,
         )
         .with_context(|| format!("edit failed; draft preserved at {}", draft_path.display()))?;
-        store.safe(&draft_path)?;
-        let raw = fs::read_to_string(&draft_path)?;
+        store
+            .safe(&draft_path)
+            .with_context(|| format!("unsafe draft; recovery path: {}", draft_path.display()))?;
+        let raw = fs::read_to_string(&draft_path).with_context(|| {
+            format!("cannot read draft; recovery path: {}", draft_path.display())
+        })?;
         draft = Some(draft_path);
         raw
     } else {
@@ -300,7 +352,11 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         render(&map, &body)?
     };
     let operation = (|| -> Result<serde_json::Value> {
-        let (next, entry, changed) = reconcile(&candidate, Some(&previous), Utc::now())?;
+        // Editors can stay open indefinitely. Lock and reload only for commit,
+        // preserving unrelated changes made by other commands in the meantime.
+        let mut state = State::load(store, true)?;
+        let previous = state.get(&args.id).unwrap_or(&initial);
+        let (next, entry, changed) = reconcile(&candidate, Some(previous), Utc::now())?;
         validate(store, &args.id, &next)?;
         // Avoid YAML formatting churn for a no-op CLI edit.
         let next = if !interactive && !changed && hash(&original)? == hash(&next)? {
@@ -310,20 +366,30 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         };
         replace(store, &args.id, &original, &next)?;
         state.set(&args.id, entry);
-        state.save(store)?;
+        state.save_after_bit(store, &args.id)?;
         Ok(serde_json::json!({"id":args.id,"path":path,"changed":changed}))
     })();
     match operation {
         Ok(value) => {
             if let Some(path) = draft {
-                fs::remove_file(path)?;
+                cleanup_draft(&path);
             }
             Ok(value)
         }
         Err(e) => Err(e).with_context(|| match draft {
             Some(p) => format!("draft preserved at {}", p.display()),
-            None => "edit failed".into(),
+            None => "edit did not complete".into(),
         }),
+    }
+}
+
+/// Cleanup failure does not turn a successfully saved bit into a failed save.
+pub fn cleanup_draft(path: &Path) {
+    if let Err(error) = fs::remove_file(path) {
+        eprintln!(
+            "warning: bit saved, but could not remove recovery draft {}: {error}",
+            path.display()
+        );
     }
 }
 
@@ -382,5 +448,51 @@ mod tests {
         assert_eq!(entry.created, at("2020-01-01T00:00:00Z"));
         assert_eq!(entry.updated, at("2021-01-01T00:00:00Z"));
         assert!(reconcile("---\ncreated: yesterday\n---\nbody", None, now).is_err());
+    }
+    #[test]
+    fn state_save_failure_reports_that_the_bit_was_saved() {
+        let temp = tempfile::tempdir().unwrap();
+        let store = Store {
+            config: crate::config::Config {
+                store: temp.path().into(),
+                editor: None,
+            },
+        };
+        fs::create_dir_all(temp.path().join("notes/bits")).unwrap();
+        let mut state = State::load(&store, true).unwrap();
+        let raw = new_bit("body", at("2020-01-01T00:00:00Z")).unwrap();
+        state.remember("notes/saved", &raw).unwrap();
+        let path = store.write_bit("notes/saved", &raw).unwrap();
+        // Make the state destination unpublishable after the note was saved.
+        fs::create_dir(temp.path().join(".bitshelf/state.json")).unwrap();
+        let error = state.save_after_bit(&store, "notes/saved").unwrap_err();
+        assert!(error.to_string().contains("bit notes/saved was saved"));
+        assert!(error.to_string().contains("run bs sync"));
+        assert!(error.to_string().contains("do not repeat bs add"));
+        assert_eq!(fs::read_to_string(path).unwrap(), raw);
+    }
+
+    #[test]
+    fn draft_cleanup_is_best_effort() {
+        let temp = tempfile::tempdir().unwrap();
+        let draft = temp.path().join(".edit-recovery.md");
+        fs::write(&draft, "recovery").unwrap();
+        cleanup_draft(&draft);
+        assert!(!draft.exists());
+        // An unremovable entry warns rather than failing the completed save.
+        fs::create_dir(&draft).unwrap();
+        cleanup_draft(&draft);
+        assert!(draft.is_dir());
+    }
+
+    #[test]
+    fn equivalent_imported_timezone_representation_is_preserved() {
+        let raw = "---\ncreated: 2020-01-01T03:00:00+03:00\nupdated: 2021-01-01T03:00:00+03:00\n---\nbody";
+        let (same, entry, changed) = reconcile(raw, None, at("2026-01-01T00:00:00Z")).unwrap();
+        assert_eq!(same, raw);
+        assert!(!changed);
+        let (same, _, changed) = reconcile(raw, Some(&entry), at("2027-01-01T00:00:00Z")).unwrap();
+        assert_eq!(same, raw);
+        assert!(!changed);
     }
 }

@@ -22,8 +22,35 @@ pub struct Shelf {
     pub required: Vec<String>,
     pub retention: Option<String>,
 }
+#[derive(Serialize)]
+pub struct Validation {
+    pub id: Option<String>,
+    pub path: PathBuf,
+    pub errors: Vec<String>,
+    pub valid: bool,
+}
+impl Validation {
+    fn new(id: Option<String>, path: PathBuf, errors: Vec<String>) -> Self {
+        Self {
+            id,
+            path,
+            valid: errors.is_empty(),
+            errors,
+        }
+    }
+    fn failure(path: PathBuf, error: impl std::fmt::Display) -> Self {
+        Self::new(None, path, vec![error.to_string()])
+    }
+}
 pub struct Store {
     pub config: Config,
+}
+fn entry_exists(path: &Path) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error).with_context(|| format!("inspecting {}", path.display())),
+    }
 }
 impl Store {
     // Refuse all shelf/bit symlinks, including internal ones. The explicitly selected store root may be a symlink.
@@ -86,6 +113,9 @@ impl Store {
         for e in fs::read_dir(&self.config.store)? {
             let e = e?;
             let n = e.file_name().to_string_lossy().into_owned();
+            if !n.starts_with('.') && e.file_type()?.is_symlink() {
+                eprintln!("warning: refusing symlink: {}", e.path().display());
+            }
             if !n.starts_with('.') && e.file_type()?.is_dir() {
                 let path = e.path();
                 self.safe(&path.join("bits"))?;
@@ -104,7 +134,7 @@ impl Store {
                 Ok(Shelf {
                     configured: path.join("bs.toml").is_file(),
                     missing: !path.join("bits").is_dir(),
-                    guidance_available: path.join("SHELF.md").try_exists()?,
+                    guidance_available: entry_exists(&path.join("SHELF.md"))?,
                     name,
                     path,
                     description: cfg.description,
@@ -200,6 +230,97 @@ impl Store {
         }
         bits.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(bits)
+    }
+    /// Unlike discovery, validation accounts for disallowed links instead of
+    /// silently excluding them. Inspect entries themselves, never their targets.
+    pub fn validate(&self, shelf: Option<&str>) -> Result<Vec<Validation>> {
+        let paths = if let Some(name) = shelf {
+            config::name(name)?;
+            vec![self.config.store.join(name)]
+        } else {
+            let mut paths = vec![];
+            for entry in fs::read_dir(&self.config.store)? {
+                let entry = entry?;
+                if entry.file_name().to_string_lossy().starts_with('.') {
+                    continue;
+                }
+                let kind = entry.file_type()?;
+                let path = entry.path();
+                // Include root links without following them to guess whether
+                // they point at a shelf (including dangling links).
+                if kind.is_symlink()
+                    || (kind.is_dir()
+                        && (entry_exists(&path.join("bits"))?
+                            || entry_exists(&path.join("bs.toml"))?))
+                {
+                    paths.push(path);
+                }
+            }
+            paths.sort();
+            paths
+        };
+        let mut results = vec![];
+        for path in paths {
+            if let Err(error) = self.safe(&path) {
+                results.push(Validation::failure(path, error));
+                continue;
+            }
+            let name = path
+                .file_name()
+                .context("shelf has no name")?
+                .to_string_lossy();
+            let mut blocked = false;
+            for field in ["bits", "bs.toml", "SHELF.md"] {
+                let managed = path.join(field);
+                if let Err(error) = self.safe(&managed) {
+                    results.push(Validation::failure(managed, error));
+                    blocked |= field != "SHELF.md";
+                }
+            }
+            if blocked {
+                continue;
+            }
+            let cfg = match self.settings(&name) {
+                Ok(cfg) => cfg,
+                Err(error) => {
+                    results.push(Validation::failure(
+                        path.join("bs.toml"),
+                        format!("{error:#}"),
+                    ));
+                    continue;
+                }
+            };
+            let bits = match self.bits_path(&name) {
+                Ok(bits) => bits,
+                Err(error) => {
+                    results.push(Validation::failure(path, error));
+                    continue;
+                }
+            };
+            let mut entries = fs::read_dir(bits)?.collect::<std::io::Result<Vec<_>>>()?;
+            entries.sort_by_key(|e| e.file_name());
+            for entry in entries {
+                let path = entry.path();
+                if entry.file_name().to_string_lossy().starts_with('.')
+                    || path.extension().is_none_or(|e| e != "md")
+                {
+                    continue;
+                }
+                let id = format!("{name}/{}", path.file_stem().unwrap().to_string_lossy());
+                let errors = if let Err(error) = self.safe(&path) {
+                    vec![error.to_string()]
+                } else if entry.file_type()?.is_file() {
+                    match fs::read_to_string(&path) {
+                        Ok(raw) => bit::inspect(id.clone(), path.clone(), &raw, &cfg).errors,
+                        Err(error) => vec![error.to_string()],
+                    }
+                } else {
+                    continue;
+                };
+                results.push(Validation::new(Some(id), path, errors));
+            }
+        }
+        Ok(results)
     }
     pub fn write_bit(&self, id: &str, raw: &str) -> Result<PathBuf> {
         let path = self.bit_path(id)?;

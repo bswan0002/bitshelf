@@ -2,24 +2,30 @@
 
 A local, Markdown-first store for notes, snippets, prompts, and handoffs. The executable is **`bs`**. Your store is an ordinary directory, not a database.
 
-**Prototype · 0.1.0.** Works locally; release publishing and Homebrew distribution require maintainer setup. No hosted service, background capture, or agent harness required.
+**Prototype · 0.1.0.** No hosted service, background capture, or agent harness required.
 
 ## Install from source
 
 Install a current stable [Rust toolchain](https://rustup.rs), then:
 
 ```sh
-cargo install --path . --locked && bs completion install
+git clone https://github.com/bswan0002/bitshelf.git
+cd bitshelf
+cargo install --path . --locked
+bs completion install
 # Start a new shell to activate completion.
-bs init --store ~/bitshelf --editor code
+bs init --store ~/bitshelf
 bs shelf add ui --description 'Reusable UI' --required title,tags
-bs add ui --title 'Command menu' --tags react --file component.md
+printf '%s\n' 'A reusable React command-menu pattern.' | \
+  bs add ui --title 'Command menu' --tags react --stdin
 bs search 'menu' --json
 bs show ui/command-menu
-bs open ui/command-menu
+# Optional: open with an installed editor.
+# For example, with vim installed:
+VISUAL=vim bs open ui/command-menu
 ```
 
-`bs init` without arguments offers terminal setup, using `$VISUAL` or `$EDITOR` automatically when set. `bs add --interactive` prompts for metadata and opens a draft; recognized GUI editors get a waiting flag automatically. `bs open --pick` provides filtered multiselection.
+`bs init` creates a default `notes` shelf. Without arguments it offers terminal setup, using `$VISUAL` or `$EDITOR` automatically when set. `bs add --interactive` prompts for metadata and opens a draft; recognized GUI editors get a waiting flag automatically. `bs open --pick` provides filtered multiselection.
 
 Shell setup detects `$SHELL` (Bash, Zsh or Fish), previews changes, and asks before writing. No separate Usage executable is needed:
 
@@ -29,7 +35,7 @@ bs completion install --shell zsh  # Override detection
 bs completion uninstall           # Remove only managed setup
 ```
 
-Use `--yes` to approve without prompting. Restart your shell afterward; `bs context <Tab>` suggests available shelves. Installation is safe to repeat and does not install the agent skill. See [completion setup](docs/guide.md#completion) for paths, limitations and manual activation.
+Use `--yes` to approve without prompting. Restart your shell afterward (Bash login shells must source `~/.bashrc` from their profile); `bs context <Tab>` suggests available shelves. Installation is safe to repeat and does not install the agent skill. See [completion setup](docs/guide.md#completion) for paths, limitations and manual activation.
 
 ## Editing and timestamps
 
@@ -40,7 +46,7 @@ bs sync                                        # After editing files outside bs
 bs list --sort updated --reverse                # Recently edited first
 ```
 
-`created` and `updated` are **reserved, automatic UTC fields**—do not set them manually. No-op edits leave timestamps unchanged. Sync detects changes using hidden store-local hashes; the first sync baselines existing files, preserving known dates. Run it once after upgrading before making external edits. See [editing and automatic timestamps](docs/guide.md#editing-and-automatic-timestamps).
+`created` and `updated` are **reserved, automatic fields**—do not set them manually. Generated timestamps use UTC; valid imported dates retain their representation. Once a bit is tracked and reconciled, no-op edits do not advance `updated`. Sync detects changes using hidden store-local hashes; first-time tracking baselines existing files, preserving valid dates and filling missing dates with discovery time. Sync imported files once before editing them externally. See [editing and automatic timestamps](docs/guide.md#editing-and-automatic-timestamps).
 
 ## Agent workflow
 
@@ -52,7 +58,7 @@ npx skills add bswan0002/bitshelf --skill bitshelf --global
 npx skills update
 ```
 
-For manual installation, copy `skills/bitshelf/` into your compatible agent's skill directory. The skill supports `bs` 0.1.x. Node.js is needed only for the optional installer.
+For manual installation, copy `skills/bitshelf/` into your compatible agent's skill directory. The skill supports `bs` 0.1.x. CLI users need Node.js only for the optional skill installer; documentation development requires Node.js 22.12+.
 
 Each shelf keeps content in `bits/`, settings in `bs.toml`, and optional authoring guidance in `SHELF.md`. Other files are left alone: keep helpers in `scripts/` and reference them from guidance. See the [shelf-local helper recipe](docs/guide.md#recipe-shelf-local-helpers).
 
@@ -64,9 +70,10 @@ Agents discover shelves, load `bs context SHELF --json`, search for existing mat
 - [JSON contract](docs/json.md)
 - [Command reference](docs/reference/index.md) (generated from Usage declarations)
 - [Release procedure](docs/releases.md)
-- [Specification](spec.md)
 
 ## Development
+
+Use Node.js 22.12+ for the documentation commands. `docs:dev` starts a long-running server; stop it before running the next command.
 
 ```sh
 cargo test --locked
@@ -80,12 +87,12 @@ npm run docs:dev
 npm run docs:build
 ```
 
-The Rust CLI is synchronous, one application package, with no search index; hidden store-local state supports timestamp change detection. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha because the current stable 1.x dependency tree has known dev-server vulnerabilities; the static site build is verified. GitHub Actions tests Linux/macOS, builds release archives, and deploys development docs separately. Nothing is published or scheduled by local setup.
+The Rust CLI is synchronous, one application package, with no search index; hidden store-local state supports timestamp change detection. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha. GitHub Actions is configured to test Linux/macOS, build release archives on version tags, and deploy development docs separately. Nothing is published or scheduled by local setup.
 
 ### Prototype boundaries
 
-- macOS and Linux are the initial targets; local automated tests have been run on Apple Silicon. CI covers the other targets.
-- Shelf/bit symlinks are deliberately refused, even when they point inside the store. The explicitly configured store root can be a symlink. Do not use a store writable by untrusted users; filesystem checks are not a defense against hostile concurrent path replacement.
+- Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64.
+- Symlinks in managed shelf paths are never followed, even when they point inside the store. Discovery skips linked shelves/bits; validation reports disallowed links as errors. The explicitly configured store root can be a symlink. Do not use a store writable by untrusted users; filesystem checks are not a defense against hostile concurrent path replacement.
 - Shelf configuration saves normalize TOML formatting/comments; `bs edit` and `bs sync` may normalize YAML formatting/comments while preserving bodies. Direct filesystem edits require `bs sync` to reconcile timestamps.
 - A draft is retained on editor/validation/finalization failure. Known GUI editors get `--wait` for add/edit drafts; unknown commands/wrappers must be configured to block until editing finishes (the CLI warns).
-- macOS release archives are unsigned/unnotarized. The tap is not live until configured and a release published; use source installation today.
+- The release workflow does not sign or notarize macOS archives. See the release procedure for publishing and Homebrew configuration.
