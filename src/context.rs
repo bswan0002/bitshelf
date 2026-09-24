@@ -10,8 +10,8 @@ pub fn load(store: &Store, name: &str) -> Result<Value> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Value::Null,
         Err(e) => return Err(e).context("cannot read SHELF.md guidance"),
     };
-    let cfg = store.settings(name);
+    let cfg = store.settings(name)?;
     Ok(
-        json!({"name": name, "path": path, "description": cfg.description, "required": cfg.required, "retention": cfg.retention, "guidance": guidance}),
+        json!({"name": name, "path": path, "bits_path": path.join("bits"), "description": cfg.description, "required": cfg.required, "retention": cfg.retention, "guidance": guidance}),
     )
 }

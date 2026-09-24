@@ -1,7 +1,6 @@
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
@@ -20,8 +19,41 @@ pub struct Config {
     pub store: PathBuf,
     #[serde(default, deserialize_with = "deserialize_editor")]
     pub editor: Option<Vec<String>>,
-    #[serde(default)]
-    pub shelves: BTreeMap<String, ShelfConfig>,
+}
+impl ShelfConfig {
+    pub fn validate(&self) -> Result<()> {
+        for r in &self.required {
+            ensure!(
+                ["title", "tags", "created", "updated", "expires"].contains(&r.as_str()),
+                "unsupported required field {r}"
+            );
+        }
+        if let Some(r) = &self.retention {
+            retention(r)?;
+        }
+        Ok(())
+    }
+    pub fn load(path: &Path) -> Result<Self> {
+        let text = match fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
+            Err(e) => return Err(e).with_context(|| format!("cannot read {}", path.display())),
+        };
+        let cfg: Self = toml::from_str(&text)
+            .with_context(|| format!("malformed shelf configuration {}", path.display()))?;
+        cfg.validate()
+            .with_context(|| format!("invalid shelf configuration {}", path.display()))?;
+        Ok(cfg)
+    }
+    pub fn save(&self, path: &Path) -> Result<()> {
+        self.validate()?;
+        let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
+        use std::io::Write;
+        tmp.write_all(toml::to_string_pretty(self)?.as_bytes())?;
+        tmp.persist(path)
+            .context("cannot save shelf configuration")?;
+        Ok(())
+    }
 }
 fn deserialize_editor<'de, D>(deserializer: D) -> std::result::Result<Option<Vec<String>>, D::Error>
 where
@@ -98,17 +130,6 @@ impl Config {
                 !editor.is_empty() && !editor[0].is_empty(),
                 "editor must contain an executable"
             );
-        }
-        for (n, s) in &self.shelves {
-            name(n)?;
-            for r in &s.required {
-                if !["title", "tags", "created", "updated", "expires"].contains(&r.as_str()) {
-                    bail!("shelf {n}: unsupported required field {r}");
-                }
-            }
-            if let Some(r) = &s.retention {
-                retention(r).with_context(|| format!("shelf {n}"))?;
-            }
         }
         Ok(())
     }

@@ -12,14 +12,14 @@
 | `sync` | `{dry_run, results: [{id, changed, metadata_changed, baselined, error}]}` |
 | `list`, `search` | `[{id, path, title, tags, metadata, errors}]` |
 | `show` | `{id, path, content}` (complete Markdown, including frontmatter) |
-| `context` | `{name, path, description, required, retention, guidance}` |
+| `context` | `{name, path, bits_path, description, required, retention, guidance}` |
 | `open` | `{paths: [...], opened: true}` after editor success |
 | `validate` | `[{id, path, errors, valid}]` |
 | `prune` | `[{id, path, status, error?}]` |
 
 `metadata` is a JSON representation of YAML frontmatter, including unknown fields; YAML values that cannot be represented in JSON produce `null`. `errors` is an array of diagnostic strings. Display titles fall back to filename stems. Search/list warn about invalid files but succeed so other bits stay accessible.
 
-`context.guidance` is `{path, text}` or `null`. A missing configured shelf produces a validation row with `id: null`. Prune statuses are `would_remove`, `removed`, or `skipped`; skipped rows include `error`. Future/permanent bits are not prune results. `--dry-run` changes only eligible rows' status, not selection rules.
+`context.guidance` is `{path, text}` or `null`. `context.path` is the shelf root; `bits_path` is its content directory. Bit IDs remain `shelf/slug`, while bit paths include `bits/`. In shelf listings, `configured` means local `bs.toml` exists and `missing` means the bits directory is absent or not a directory. A discovered shelf missing its bits directory produces a validation row with `id: null`. Deleted shelves are no longer discovered. Prune statuses are `would_remove`, `removed`, or `skipped`; skipped rows include `error`. Future/permanent bits are not prune results. `--dry-run` changes only eligible rows' status, not selection rules.
 
 Validation, sync and prune may emit a complete result document and still exit 1. Early operational/usage errors emit only stderr (no partial JSON). Always check exit status. Editor stdout is redirected to stderr in JSON mode. Interactive flags are incompatible with JSON. Completion prints shell source, not JSON, and rejects `--json`.
 

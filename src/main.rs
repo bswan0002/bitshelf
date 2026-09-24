@@ -17,7 +17,6 @@ use config::{Config, ShelfConfig};
 use output::emit;
 use serde_json::json;
 use std::{
-    collections::BTreeMap,
     fs,
     io::{IsTerminal, Read},
     path::PathBuf,
@@ -83,14 +82,19 @@ fn run(args: Bs) -> Result<()> {
                 .filter(|s| !s.trim().is_empty())
                 .map(|s| shell_words::split(&s))
                 .transpose()?,
-            shelves: BTreeMap::from([("notes".into(), ShelfConfig::default())]),
         };
         cfg.validate()?;
         fs::create_dir_all(&root)?;
         let store = Store {
             config: cfg.clone(),
         };
-        fs::create_dir_all(store.shelf_path("notes", false)?)?;
+        let shelf = store.shelf_path("notes", false)?;
+        store.safe(&shelf.join("bits"))?;
+        store.safe(&shelf.join("bs.toml"))?;
+        fs::create_dir_all(shelf.join("bits"))?;
+        if !shelf.join("bs.toml").try_exists()? {
+            ShelfConfig::default().save(&shelf.join("bs.toml"))?;
+        }
         cfg.save(&path, true)?;
         return emit(
             &json!({"config":path,"store":root}),
@@ -102,7 +106,7 @@ fn run(args: Bs) -> Result<()> {
             ),
         );
     }
-    let mut store = Store {
+    let store = Store {
         config: Config::load(&path)?,
     };
     match args.command {
@@ -116,7 +120,7 @@ fn run(args: Bs) -> Result<()> {
                             "{}{}\t{}\t{}",
                             s.name,
                             if s.missing {
-                                " (missing; use bs shelf add)"
+                                " (missing bits directory; use bs shelf add)"
                             } else {
                                 ""
                             },
@@ -147,7 +151,7 @@ fn run(args: Bs) -> Result<()> {
                 }
                 let name = c.name.unwrap();
                 let dest = store.shelf_path(&name, false)?;
-                let mut cfg = store.settings(&name);
+                let mut cfg = store.settings(&name)?;
                 if let Some(v) = c.description {
                     cfg.description = Some(v);
                 }
@@ -162,10 +166,10 @@ fn run(args: Bs) -> Result<()> {
                 if c.retention.is_some() {
                     cfg.retention = c.retention;
                 }
-                store.config.shelves.insert(name.clone(), cfg);
-                store.config.validate()?;
-                fs::create_dir_all(&dest)?;
-                store.config.save(&path, false)?;
+                cfg.validate()?;
+                store.safe(&dest.join("bits"))?;
+                fs::create_dir_all(dest.join("bits"))?;
+                cfg.save(&dest.join("bs.toml"))?;
                 emit(
                     &json!({"name":name,"path":dest}),
                     json_output,
@@ -225,7 +229,7 @@ fn run(args: Bs) -> Result<()> {
             } else {
                 String::new()
             };
-            let cfg = store.settings(&shelf);
+            let cfg = store.settings(&shelf)?;
             let created_at = Utc::now();
             let mut raw = bit::create(&title, c.tags.as_deref(), &body, &cfg, created_at)?;
             let mut draft = None;
@@ -234,7 +238,7 @@ fn run(args: Bs) -> Result<()> {
                 let mut file = tempfile::Builder::new()
                     .prefix(".draft-")
                     .suffix(".md")
-                    .tempfile_in(store.shelf_path(&shelf, true)?)?;
+                    .tempfile_in(store.bits_path(&shelf)?)?;
                 file.write_all(raw.as_bytes())?;
                 let (_, p) = file.keep()?;
                 // Keep the draft on every editor/validation/finalization failure.
@@ -413,7 +417,7 @@ fn run(args: Bs) -> Result<()> {
             let mut results: Vec<_> = bits.iter().map(|b| json!({"id":b.id,"path":b.path,"errors":b.errors,"valid":b.errors.is_empty()})).collect();
             if c.shelf.is_none() {
                 for s in store.shelves()?.into_iter().filter(|s| s.missing) {
-                    results.push(json!({"id":null,"path":s.path,"errors":[format!("missing shelf {}; use bs shelf add {}", s.name, s.name)],"valid":false}));
+                    results.push(json!({"id":null,"path":s.path,"errors":[format!("missing bits directory for shelf {}; use bs shelf add {}", s.name, s.name)],"valid":false}));
                 }
             }
             let valid = results.iter().all(|v| v["valid"] == true);
@@ -436,7 +440,7 @@ fn run(args: Bs) -> Result<()> {
             let mut failed = false;
             for b in bits {
                 let shelf = b.id.split('/').next().unwrap();
-                match prune::decide(&b, &store.settings(shelf), now) {
+                match prune::decide(&b, &store.settings(shelf)?, now) {
                     prune::Decision::Keep => continue,
                     prune::Decision::Skip(error) => {
                         eprintln!("warning: {}: {error}; skipped", b.id);

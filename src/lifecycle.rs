@@ -158,7 +158,7 @@ pub fn reconcile(
 
 pub fn validate(store: &Store, id: &str, raw: &str) -> Result<()> {
     let shelf = id.split('/').next().unwrap();
-    let checked = bit::inspect(id.into(), store.bit_path(id)?, raw, &store.settings(shelf));
+    let checked = bit::inspect(id.into(), store.bit_path(id)?, raw, &store.settings(shelf)?);
     ensure!(
         checked.errors.is_empty(),
         "invalid metadata for {id}: {}",

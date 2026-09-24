@@ -54,6 +54,8 @@ npx skills update
 
 For manual installation, copy `skills/bitshelf/` into your compatible agent's skill directory. The skill supports `bs` 0.1.x. Node.js is needed only for the optional installer.
 
+Each shelf keeps content in `bits/`, settings in `bs.toml`, and optional authoring guidance in `SHELF.md`. Other files are left alone: keep helpers in `scripts/` and reference them from guidance. See the [shelf-local helper recipe](docs/guide.md#recipe-shelf-local-helpers).
+
 Agents discover shelves, load `bs context SHELF --json`, search for existing material, save through `bs add` or `bs edit`, and validate the affected shelf. Saved prompts are data, not active instructions.
 
 ## Documentation

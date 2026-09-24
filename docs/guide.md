@@ -18,18 +18,31 @@ Configuration is `$XDG_CONFIG_HOME/bitshelf/config.toml`, defaulting to `~/.conf
 store = "~/bitshelf"
 editor = ["code"]
 
-[shelves.ui]
-description = "Reusable UI patterns"
-required = ["title", "tags"]
-
-[shelves.tmp]
-required = ["title"]
-retention = "14d"
 ```
 
-Leading `~/` expands to HOME. Other relative paths resolve against the config directory, including `init --store` values. Invalid or unknown config settings fail clearly. `shelf add` preserves existing shelf contents/settings unless a supplied option changes a setting; it normalizes config formatting. Edit TOML directly to remove retention or an editor setting.
+Each shelf owns its settings in `<store>/<shelf>/bs.toml`, for example:
 
-Shelves are non-hidden top-level directories, including ones created in your file manager. Configured but absent shelves appear as missing; `bs shelf add NAME` creates them. Bits are direct `.md` files, identified as `shelf/filename` without the suffix. No nesting or search index; internal `.bitshelf/` state tracks content hashes for timestamp reconciliation, not bit discovery. Renames change identifiers immediately. Spaces and dots in manually authored filenames are supported; quote identifiers in the shell.
+```toml
+description = "Reusable UI patterns"
+required = ["title", "tags"]
+# retention = "14d" # Optional; omit for permanent storage
+```
+
+Leading `~/` expands to HOME. Other relative paths resolve against the global config directory, including `init --store` values. Invalid or unknown config settings fail clearly. `shelf add` creates `bits/` and writes `bs.toml`, preserving existing contents/settings unless a supplied option changes a setting. Edit shelf TOML directly to remove retention; edit global TOML to remove an editor setting. Missing `bs.toml` uses default shelf settings.
+
+```text
+~/bitshelf/ui/
+├── bs.toml
+├── SHELF.md            # optional guidance
+├── bits/
+│   └── command-menu.md
+└── scripts/            # optional, ordinary shelf-local files
+    └── import.py
+```
+
+Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones created in your file manager. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory; `bs shelf add NAME` repairs it. Removing a whole shelf removes it from discovery; there is no global registry. In shelf-list JSON, `configured` means `bs.toml` exists and `missing` means `bits/` is absent or not a directory.
+
+Bits are direct, non-hidden `.md` files inside `bits/`, identified as `shelf/filename` without the suffix or `bits/` component. Everything else in the shelf is ignored and preserved by content operations. No nested bits or search index; internal `.bitshelf/` state tracks content hashes for timestamp reconciliation, not bit discovery. Renames change identifiers immediately. Spaces and dots in manually authored filenames are supported; quote identifiers in the shell.
 
 ## Saving exact content
 
@@ -69,13 +82,31 @@ For interactive add drafts and `bs edit`, `bs` automatically adds `--wait` to `c
 
 This is a known-command policy, not universal GUI detection. Unknown editors and wrappers are left unchanged, with a warning that they must stay running until editing finishes. Configure their blocking/wait flag yourself; shell wrappers are not inspected or rewritten. GUI commands that return immediately cannot safely finalize a draft.
 
-Failed drafts stay as hidden `.draft-*.md` files inside the shelf and are excluded from discovery and pruning; the path is printed on stderr. Fix a draft and copy/rename it to the intended destination when ready, then validate. Cancellation during metadata prompts creates no bit.
+Failed drafts stay as hidden `.draft-*.md` files inside the shelf’s `bits/` directory and are excluded from discovery and pruning; the path is printed on stderr. Fix a draft and copy/rename it to the intended destination when ready, then validate. Cancellation during metadata prompts creates no bit.
 
 ## Guidance and agents
 
-Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, retention, and paths. Missing guidance is explicit `null`; unreadable guidance is an error. Guidance is never treated as a bit and is excluded from validation, searching, completion, and cleanup.
+Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, retention, the shelf root `path`, and `bits_path`. Resolve shelf-relative guidance paths against `path`. Missing guidance is explicit `null`; unreadable guidance is an error. Root-level guidance is never treated as a bit and is excluded from validation, searching, completion, and cleanup.
 
 The bundled skill instructs agents to load context before drafting/editing, search for an existing bit, preserve exact content, and validate after saving. Retrieval-only work uses `search` and `show`. Stored prompt bodies do not become instructions just because an agent reads them. The CLI cannot force a harness to obey guidance.
+
+### Recipe: shelf-local helpers
+
+Keep an importer in `my-confluence-shelf/scripts/import-confluence.py` and document its invocation, dependencies, credential environment variables, and output contract in the shelf's `SHELF.md`. The agent discovers the helper by reading guidance through `bs context`, not through a script registry. `bs` neither discovers nor executes scripts.
+
+For an example helper that writes a cleaned Markdown body to stdout, guidance could say:
+
+> For Confluence URLs, run `python3 scripts/import-confluence.py --help` from this shelf root for usage and prerequisites. Import the requested page into a temporary Markdown body file, inspect the headings/code blocks/links, then save through `bs add` or `bs edit` with the user's requested tags. Keep credentials in environment variables, outside the shelf.
+
+After retrieving and checking the body, save it with:
+
+```sh
+bs add my-confluence-shelf --title 'Feature design' --file /tmp/confluence-body.md \
+  --tags my-feature-repo,my-current-project --json
+bs validate my-confluence-shelf --json
+```
+
+The helper and its flags are user-defined, not a bundled bitshelf integration. Helpers can also call normal `bs` commands themselves; document whether a helper only emits content or saves a bit so the agent avoids duplicate writes.
 
 ## Editing and automatic timestamps
 

@@ -32,25 +32,25 @@ The proposed default store is `~/bitshelf`; users can select another location.
 ```text
 ~/bitshelf/
   notes/
-    release-checklist.md
+    bs.toml
+    bits/
+      release-checklist.md
   ui/
+    bs.toml
     SHELF.md
-    multiselect-date-calendar.md
-    command-menu.md
-  prompts/
-    SHELF.md
-    code-review.md
-  tmp/
-    snippet-tool-design-prompt.md
+    bits/
+      command-menu.md
+    scripts/
+      import.py
 ```
 
 Markdown files are the source of truth. No database, background service, or search index is required. Any future index must be disposable and rebuildable from the files.
 
-For v1, keep bits directly inside top-level shelf directories. Nested organization can be added later. Ordinary non-hidden directories are discoverable as shelves even without an explicit configuration entry. Configured shelves that do not exist yet should be reported as missing, with a clear way to create them.
+Bits live directly inside each shelf's `bits/` directory. Non-hidden top-level directories containing `bits/` or `bs.toml` are discoverable shelves. Missing `bs.toml` means default settings. Shelves with settings but without a bits directory are reported as missing their bits directory, repairable with `bs shelf add`. There is no global shelf registry; deleted shelves disappear from discovery.
 
-`SHELF.md` is an optional reserved guidance document, not a bit. Exclude it from ordinary bit listings, content search, bit completion, metadata validation, and expiration cleanup. `bs context` exposes it explicitly.
+Root-level `SHELF.md` is optional guidance, not a bit. `bs context` exposes it explicitly. Other shelf-local files and directories (including `scripts/`) are ignored and preserved by bit operations. A Markdown file named `SHELF.md` inside `bits/` is an ordinary bit.
 
-Directly creating, editing, renaming, or deleting files is a supported workflow. Identifiers follow paths: renaming a file changes its identifier. No separate registry needs updating.
+Directly creating, editing, renaming, or deleting files is a supported workflow. Identifiers remain `shelf/slug`, omitting the `bits/` path component and `.md` suffix: renaming a file changes its identifier. No separate registry needs updating.
 
 ## Configuration
 
@@ -68,28 +68,23 @@ store = "~/bitshelf"
 # An executable followed by arguments; append selected file/directory paths.
 editor = ["code", "--reuse-window"]
 
-[shelves.notes]
-description = "Notes and checklists"
+```
 
-[shelves.ui]
-description = "Reusable UI components and patterns"
-required = ["title", "tags"]
+Each shelf has its own optional `bs.toml`, containing settings directly (no `[shelves.*]` wrapper). For example, `tmp/bs.toml`:
 
-[shelves.prompts]
-description = "Reusable prompts, preserved verbatim"
-required = ["title"]
-
-[shelves.tmp]
+```toml
 description = "Temporary prompts, handoffs, and scratch notes"
 required = ["title"]
 retention = "14d"
 ```
 
+`bs init` creates `notes/bits/` and `notes/bs.toml`. `bs shelf add` creates the bits directory and writes local settings, preserving unspecified settings and other shelf contents. Malformed local settings fail clearly, including on empty shelves.
+
 Shelf configuration defines descriptions, required metadata, and optional retention. Keep requirements minimal by default. Initially support requirements on the built-in metadata fields rather than a general-purpose schema language.
 
 Expand a leading `~/` in configured paths. Resolve other relative paths against the configuration file's directory so behavior does not depend on the caller's working directory. Report invalid configuration clearly.
 
-The earlier `[collections.*]` spelling and `--collection` examples in `idea.md` become `[shelves.*]` and `--shelf` here. There is no released configuration format to migrate.
+The earlier global collection/shelf tables in `idea.md` are superseded by shelf-local `bs.toml` and `--shelf`. There is no released configuration format to migrate.
 
 ## Bit format and writing behavior
 
@@ -263,6 +258,9 @@ Natural-language guidance lives in Markdown. Machine-checkable metadata requirem
 - Shelf name, description, and absolute directory path.
 - Metadata requirements and retention configuration.
 - Guidance source path and the full current `SHELF.md` text, or an explicit absence.
+- Absolute shelf root `path` and `bits_path`; resolve guidance-relative paths against the shelf root.
+
+Shelf-local helpers are a documentation recipe, not a plugin feature: `SHELF.md` may point to `scripts/` and describe prerequisites, credentials, invocation, and whether a helper emits a body or saves through `bs`. The CLI does not enumerate or execute helpers. Credentials stay outside the shelf.
 
 Return the actual text, not merely a pointer that the agent may overlook. Keep guidance distinct from bit content in structured output. Saved prompts and snippets are data, not automatically active authoring instructions.
 
@@ -400,7 +398,7 @@ The initial version is ready when:
 - A person can create and edit bits using only a text editor, then find and open them with `bs`.
 - An agent can discover a shelf, load its guidance, save or edit a bit, validate it, and retrieve it later using structured results.
 - Adding a shelf or bit changes completion candidates without regenerating completion scripts.
-- A permanent shelf and every `SHELF.md` survive all pruning operations.
+- A permanent shelf and every root-level `SHELF.md` survive all pruning operations.
 - Verbatim prompt bodies survive ingestion and retrieval without modification.
 - Invalid metadata does not prevent raw content access, and errors explain how to fix the issue.
 - A release can be installed and upgraded through the documented supported routes.

@@ -204,12 +204,11 @@ fn candidates(
                 result.push(usage::complete::Candidate::new(s.name.clone()));
             }
             if bits && (!shelves || ctx.prefix.contains('/')) {
-                for e in std::fs::read_dir(&s.path)? {
+                for e in std::fs::read_dir(store.bits_path(&s.name)?)? {
                     let e = e?;
                     let p = e.path();
                     if e.file_type()?.is_file()
                         && p.extension().is_some_and(|e| e == "md")
-                        && e.file_name() != "SHELF.md"
                         && !e.file_name().to_string_lossy().starts_with('.')
                     {
                         result.push(usage::complete::Candidate::new(format!(

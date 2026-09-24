@@ -145,7 +145,7 @@ fn gui_draft_gets_wait_flag_but_open_does_not() {
     let tmp = tempfile::tempdir().unwrap();
     let config = tmp.path().join("config.toml");
     let store = tmp.path().join("store");
-    fs::create_dir_all(store.join("notes")).unwrap();
+    fs::create_dir_all(store.join("notes/bits")).unwrap();
     let editor = tmp.path().join("code");
     let log = tmp.path().join("args");
     fs::write(
@@ -182,7 +182,7 @@ fn gui_draft_gets_wait_flag_but_open_does_not() {
             .unwrap()
             .starts_with("--wait\n--reuse-window\n")
     );
-    assert!(store.join("notes/draft.md").exists());
+    assert!(store.join("notes/bits/draft.md").exists());
     let mut terminal = Terminal::spawn(&config, &["open", "notes/draft"], &[]);
     assert_eq!(terminal.finish(), 0);
     assert!(

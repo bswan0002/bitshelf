@@ -55,7 +55,18 @@ impl Fixture {
         serde_json::from_slice(&self.ok(args).stdout).unwrap()
     }
     fn write(&self, id: &str, text: &str) {
-        fs::write(self.root.join(format!("{id}.md")), text).unwrap();
+        fs::write(self.bit_path(id), text).unwrap();
+    }
+    fn bit_path(&self, id: &str) -> PathBuf {
+        let (shelf, slug) = id.split_once('/').unwrap();
+        if slug == "SHELF" {
+            self.root.join(shelf).join("SHELF.md")
+        } else {
+            self.root
+                .join(shelf)
+                .join("bits")
+                .join(format!("{slug}.md"))
+        }
     }
 }
 #[test]
@@ -129,7 +140,7 @@ fn malformed_metadata_is_readable_and_unknown_fields_survive() {
     f.write("notes/broken", "---\ntitle: [\n---\nfind me");
     f.write("notes/plain", "handwritten");
     f.write("notes/unknown", "---\ncustom: {nested: yes}\n---\nbody");
-    let before = fs::read(f.root.join("notes/unknown.md")).unwrap();
+    let before = fs::read(f.root.join("notes/bits/unknown.md")).unwrap();
     let list = f.json(&["list", "--json"]);
     assert_eq!(list.as_array().unwrap().len(), 3);
     assert!(!list[0]["errors"].as_array().unwrap().is_empty());
@@ -147,7 +158,10 @@ fn malformed_metadata_is_readable_and_unknown_fields_survive() {
     let out = f.run(&["validate", "--json"]);
     assert_eq!(out.status.code(), Some(1));
     serde_json::from_slice::<Value>(&out.stdout).unwrap();
-    assert_eq!(fs::read(f.root.join("notes/unknown.md")).unwrap(), before);
+    assert_eq!(
+        fs::read(f.root.join("notes/bits/unknown.md")).unwrap(),
+        before
+    );
 }
 #[test]
 fn guidance_requirements_and_missing_shelves() {
@@ -173,7 +187,7 @@ fn guidance_requirements_and_missing_shelves() {
             .success()
     );
     f.ok(&["add", "ui", "--title", "Valid", "--tags", "react"]);
-    fs::remove_dir_all(f.root.join("ui")).unwrap();
+    fs::remove_dir_all(f.root.join("ui/bits")).unwrap();
     assert!(
         f.json(&["shelf", "list", "--json"])
             .as_array()
@@ -209,9 +223,9 @@ fn expiration_is_opt_in_explicit_and_safe() {
             .count(),
         1
     );
-    assert!(f.root.join("tmp/expired.md").exists());
+    assert!(f.root.join("tmp/bits/expired.md").exists());
     f.run(&["prune", "--json"]);
-    assert!(!f.root.join("tmp/expired.md").exists());
+    assert!(!f.root.join("tmp/bits/expired.md").exists());
     for p in [
         "notes/permanent",
         "tmp/SHELF",
@@ -219,7 +233,7 @@ fn expiration_is_opt_in_explicit_and_safe() {
         "tmp/missing",
         "tmp/invalid",
     ] {
-        assert!(f.root.join(format!("{p}.md")).exists());
+        assert!(f.bit_path(p).exists());
     }
     f.ok(&["add", "tmp", "--title", "New"]);
     let rows = f.json(&["list", "tmp", "--json"]);
@@ -260,7 +274,7 @@ fn usage_errors_and_config_errors_have_distinct_statuses() {
 fn relative_config_paths_and_manual_names() {
     let f = Fixture::new();
     fs::write(&f.config, "store = 'store'\neditor = ['true']\n").unwrap();
-    fs::create_dir(f.root.join("my shelf")).unwrap();
+    fs::create_dir_all(f.root.join("my shelf/bits")).unwrap();
     f.write("my shelf/a.b note", "manual");
     f.ok(&["show", "my shelf/a.b note"]);
     f.ok(&["open", "my shelf/a.b note"]);
@@ -283,7 +297,7 @@ fn refuses_symlink_writes_reads_and_pruning() {
     f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
     symlink(
         external.path().join("victim.md"),
-        f.root.join("tmp/victim.md"),
+        f.root.join("tmp/bits/victim.md"),
     )
     .unwrap();
     assert!(!f.run(&["show", "tmp/victim"]).status.success());
@@ -326,8 +340,8 @@ fn editor_arguments_and_json_are_not_shell_evaluated() {
         assert_eq!(value["opened"], true);
         let lines = fs::read_to_string(&log).unwrap();
         assert!(lines.starts_with("a b\n$(touch NEVER)\n"));
-        assert!(lines.contains(f.root.join("notes/a.md").to_str().unwrap()));
-        assert!(lines.contains(f.root.join("notes/b.md").to_str().unwrap()));
+        assert!(lines.contains(f.root.join("notes/bits/a.md").to_str().unwrap()));
+        assert!(lines.contains(f.root.join("notes/bits/b.md").to_str().unwrap()));
     }
 }
 #[test]
@@ -347,7 +361,7 @@ fn dynamic_completion_uses_current_store_and_override() {
     f.write("notes/SHELF", "guidance");
     assert!(complete("open notes/").contains("notes/fresh"));
     assert!(!complete("open notes/").contains("SHELF"));
-    fs::remove_file(f.root.join("notes/fresh.md")).unwrap();
+    fs::remove_file(f.root.join("notes/bits/fresh.md")).unwrap();
     assert!(!complete("show notes/").contains("notes/fresh"));
     f.ok(&["shelf", "add", "ui"]);
     assert!(complete("search x --shelf u").contains("ui"));
@@ -359,7 +373,7 @@ fn dynamic_completion_uses_current_store_and_override() {
 fn edit_and_sync_manage_reserved_timestamps_and_preserve_body() {
     let f = Fixture::new();
     f.ok(&["add", "notes", "--title", "Tracked"]);
-    let path = f.root.join("notes/tracked.md");
+    let path = f.root.join("notes/bits/tracked.md");
     let before = fs::read_to_string(&path).unwrap();
     let metadata = |raw: &str| -> serde_yaml::Value {
         serde_yaml::from_str(raw.split("---").nth(1).unwrap()).unwrap()
@@ -443,7 +457,7 @@ fn sync_baselines_legacy_files_and_reports_invalid_bits() {
     let f = Fixture::new();
     f.write("notes/legacy", "---\ntitle: Legacy\ncreated: 2020-01-01T00:00:00Z\ncustom: keep\nexpires: 2099-01-01T00:00:00Z\n---\nbody");
     f.write("notes/broken", "---\ntitle: [\n---\nbroken");
-    let path = f.root.join("notes/legacy.md");
+    let path = f.root.join("notes/bits/legacy.md");
     let original = fs::read(&path).unwrap();
     let preview = f.run(&["sync", "--dry-run", "--json"]);
     assert!(!preview.status.success());
@@ -461,7 +475,7 @@ fn sync_baselines_legacy_files_and_reports_invalid_bits() {
     assert!(raw.contains("expires: 2099-01-01T00:00:00Z"));
     assert!(raw.ends_with("body"));
     assert_eq!(
-        fs::read_to_string(f.root.join("notes/broken.md")).unwrap(),
+        fs::read_to_string(f.root.join("notes/bits/broken.md")).unwrap(),
         "---\ntitle: [\n---\nbroken"
     );
 }
@@ -506,7 +520,7 @@ fn chronological_sort_and_updated_validation() {
 fn editor_edit_waits_and_preserves_drafts_on_failure() {
     let f = Fixture::new();
     f.ok(&["add", "notes", "--title", "Edit me"]);
-    let path = f.root.join("notes/edit-me.md");
+    let path = f.root.join("notes/bits/edit-me.md");
     let initial = fs::read_to_string(&path).unwrap();
     let script = f._temp.path().join("editor.sh");
     fs::write(&script, "printf '\neditor content' >> \"$1\"\n").unwrap();
@@ -531,7 +545,7 @@ fn editor_edit_waits_and_preserves_drafts_on_failure() {
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("draft preserved"));
     assert_eq!(fs::read(&path).unwrap(), saved);
-    assert!(fs::read_dir(f.root.join("notes")).unwrap().any(|e| {
+    assert!(fs::read_dir(f.root.join("notes/bits")).unwrap().any(|e| {
         e.unwrap()
             .file_name()
             .to_string_lossy()
@@ -546,7 +560,7 @@ fn editor_edit_waits_and_preserves_drafts_on_failure() {
 fn invalid_edit_does_not_change_file_or_tracking_and_lock_is_respected() {
     let f = Fixture::new();
     f.ok(&["add", "notes", "--title", "Safe"]);
-    let path = f.root.join("notes/safe.md");
+    let path = f.root.join("notes/bits/safe.md");
     let state = f.root.join(".bitshelf/state.json");
     let raw = fs::read(&path).unwrap();
     let tracked = fs::read(&state).unwrap();
@@ -585,7 +599,7 @@ fn stdin_edit_preserves_unknown_metadata_expiration_and_reserved_dates() {
         .unwrap();
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success());
-    let raw = fs::read_to_string(f.root.join("notes/imported.md")).unwrap();
+    let raw = fs::read_to_string(f.root.join("notes/bits/imported.md")).unwrap();
     assert!(raw.contains("created: 2020-01-01T00:00:00Z"));
     assert!(raw.contains("expires: 2099-01-01T00:00:00Z"));
     assert!(raw.contains("keep: true"));
@@ -618,7 +632,7 @@ fn stdin_edit_preserves_unknown_metadata_expiration_and_reserved_dates() {
 fn concurrent_direct_edits_are_not_overwritten_and_corrupt_state_is_not_discarded() {
     let f = Fixture::new();
     f.ok(&["add", "notes", "--title", "Concurrent"]);
-    let path = f.root.join("notes/concurrent.md");
+    let path = f.root.join("notes/bits/concurrent.md");
     let script = f._temp.path().join("editor.sh");
     fs::write(
         &script,
@@ -658,7 +672,7 @@ fn lifecycle_refuses_symlinked_bits_and_internal_state() {
     let f = Fixture::new();
     let outside = f._temp.path().join("outside.md");
     fs::write(&outside, "outside").unwrap();
-    symlink(&outside, f.root.join("notes/link.md")).unwrap();
+    symlink(&outside, f.root.join("notes/bits/link.md")).unwrap();
     assert!(
         !f.run(&["edit", "notes/link", "--title", "Unsafe"])
             .status
@@ -674,7 +688,7 @@ fn lifecycle_refuses_symlinked_bits_and_internal_state() {
             .status
             .success()
     );
-    assert!(!f.root.join("notes/unsafe.md").exists());
+    assert!(!f.root.join("notes/bits/unsafe.md").exists());
     assert_eq!(fs::read_dir(state_dir).unwrap().count(), 0);
 }
 
@@ -687,7 +701,7 @@ fn sync_tracks_incomplete_bits_without_enforcing_shelf_requirements() {
     let preview = f.ok(&["sync", "ui", "--dry-run", "--json"]);
     assert!(preview.stderr.is_empty());
     assert_eq!(
-        fs::read_to_string(f.root.join("ui/abc.md")).unwrap(),
+        fs::read_to_string(f.root.join("ui/bits/abc.md")).unwrap(),
         "unfinished note"
     );
     let synced = f.ok(&["sync", "ui", "--json"]);
@@ -700,7 +714,7 @@ fn sync_tracks_incomplete_bits_without_enforcing_shelf_requirements() {
             .iter()
             .all(|r| r["baselined"] == true && r["error"].is_null())
     );
-    let path = f.root.join("ui/abc.md");
+    let path = f.root.join("ui/bits/abc.md");
     let baseline = fs::read_to_string(&path).unwrap();
     assert!(baseline.contains("created:"));
     assert!(baseline.contains("updated:"));
@@ -711,7 +725,7 @@ fn sync_tracks_incomplete_bits_without_enforcing_shelf_requirements() {
     let updated = f.json(&["sync", "ui", "--json"]);
     assert_eq!(updated["results"][0]["changed"], true);
     assert!(
-        fs::read_to_string(f.root.join("ui/bad-tags.md"))
+        fs::read_to_string(f.root.join("ui/bits/bad-tags.md"))
             .unwrap()
             .contains("tags: not-a-list")
     );
@@ -721,5 +735,176 @@ fn sync_tracks_incomplete_bits_without_enforcing_shelf_requirements() {
         !f.run(&["edit", "ui/abc", "--title", "Still missing tags", "--json"])
             .status
             .success()
+    );
+}
+
+#[test]
+fn shelf_local_configuration_and_storage_are_portable() {
+    let f = Fixture::new();
+    f.ok(&[
+        "shelf",
+        "add",
+        "docs",
+        "--description",
+        "Documentation",
+        "--required",
+        "title,tags",
+    ]);
+    let global = fs::read_to_string(&f.config).unwrap();
+    assert!(!global.contains("shelves"));
+    assert!(f.root.join("notes/bits").is_dir());
+    assert!(f.root.join("notes/bs.toml").is_file());
+    assert!(
+        fs::read_to_string(f.root.join("docs/bs.toml"))
+            .unwrap()
+            .contains("Documentation")
+    );
+    fs::rename(f.root.join("docs"), f.root.join("renamed")).unwrap();
+    let context = f.json(&["context", "renamed", "--json"]);
+    assert_eq!(context["description"], "Documentation");
+    assert_eq!(
+        context["bits_path"],
+        f.root.join("renamed/bits").to_str().unwrap()
+    );
+    assert_eq!(context["path"], f.root.join("renamed").to_str().unwrap());
+    assert!(
+        !f.run(&["add", "renamed", "--title", "No tags"])
+            .status
+            .success()
+    );
+    f.ok(&[
+        "add",
+        "renamed",
+        "--title",
+        "Tagged",
+        "--tags",
+        "repo,project",
+    ]);
+    assert!(f.root.join("renamed/bits/tagged.md").is_file());
+    f.ok(&["shelf", "add", "renamed"]);
+    assert_eq!(
+        f.json(&["context", "renamed", "--json"])["required"],
+        serde_json::json!(["title", "tags"])
+    );
+    fs::remove_dir_all(f.root.join("renamed")).unwrap();
+    assert!(
+        !f.json(&["shelf", "list", "--json"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["name"] == "renamed")
+    );
+}
+
+#[test]
+fn auxiliary_files_are_ignored_and_preserved() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "docs", "--retention", "1d"]);
+    fs::create_dir_all(f.root.join("docs/scripts")).unwrap();
+    fs::create_dir_all(f.root.join("unrelated")).unwrap();
+    let auxiliary = [
+        "docs/SHELF.md",
+        "docs/README.md",
+        "docs/scripts/import.py",
+        "docs/scripts/example.md",
+        "unrelated/readme.md",
+    ];
+    let content = "---\nexpires: 2000-01-01T00:00:00Z\n---\nauxiliary-needle";
+    for path in auxiliary {
+        fs::write(f.root.join(path), content).unwrap();
+    }
+    f.write("docs/expired", content);
+    // SHELF is only guidance at the shelf root; inside bits it is an ordinary bit.
+    fs::write(f.root.join("docs/bits/SHELF.md"), "ordinary bit").unwrap();
+    assert_eq!(
+        f.json(&["list", "docs", "--json"])
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        f.json(&["search", "auxiliary-needle", "--json"])
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    f.ok(&["sync", "--json"]);
+    f.ok(&["validate", "--json"]);
+    // Remove the nonexpiring bit to allow pruning to succeed without a skip warning.
+    fs::remove_file(f.root.join("docs/bits/SHELF.md")).unwrap();
+    f.ok(&["prune", "--json"]);
+    assert!(!f.root.join("docs/bits/expired.md").exists());
+    for path in auxiliary {
+        assert_eq!(fs::read_to_string(f.root.join(path)).unwrap(), content);
+    }
+    assert!(
+        !f.json(&["shelf", "list", "--json"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["name"] == "unrelated")
+    );
+}
+
+#[test]
+fn invalid_shelf_config_fails_even_when_empty() {
+    let f = Fixture::new();
+    for text in [
+        "invalid toml [",
+        "retention = '0d'",
+        "required = ['unknown']",
+        "typo = true",
+    ] {
+        fs::write(f.root.join("notes/bs.toml"), text).unwrap();
+        for args in [
+            vec!["context", "notes"],
+            vec!["list", "notes"],
+            vec!["validate"],
+            vec!["shelf", "list"],
+            vec!["shelf", "add", "notes"],
+        ] {
+            let out = f.run(&args);
+            assert!(!out.status.success(), "{args:?}: {text}");
+            assert!(String::from_utf8_lossy(&out.stderr).contains("bs.toml"));
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn refuses_symlinked_bits_directories_and_shelf_configs() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let external = tempfile::tempdir().unwrap();
+    fs::remove_dir(f.root.join("notes/bits")).unwrap();
+    symlink(external.path(), f.root.join("notes/bits")).unwrap();
+    for args in [
+        vec!["list"],
+        vec!["add", "notes", "--title", "Bad"],
+        vec!["shelf", "add", "notes"],
+    ] {
+        assert!(!f.run(&args).status.success());
+    }
+    fs::remove_file(f.root.join("notes/bits")).unwrap();
+    fs::create_dir(f.root.join("notes/bits")).unwrap();
+    fs::write(external.path().join("bs.toml"), "required = []").unwrap();
+    fs::remove_file(f.root.join("notes/bs.toml")).unwrap();
+    symlink(
+        external.path().join("bs.toml"),
+        f.root.join("notes/bs.toml"),
+    )
+    .unwrap();
+    for args in [
+        vec!["context", "notes"],
+        vec!["list"],
+        vec!["shelf", "add", "notes"],
+    ] {
+        assert!(!f.run(&args).status.success());
+    }
+    assert_eq!(
+        fs::read_to_string(external.path().join("bs.toml")).unwrap(),
+        "required = []"
     );
 }

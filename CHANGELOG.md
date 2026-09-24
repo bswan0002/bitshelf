@@ -8,6 +8,7 @@
 - Init honors VISUAL/EDITOR without prompting; recognized GUI editors automatically wait for draft editing only.
 - Automatic reserved `created`/`updated` timestamps, editor or body-input `bs edit`, hash-based `bs sync` for external edits, and chronological list sorting.
 - Patched Demand's duplicate completed-prompt rendering, covered by real-terminal regression tests.
-- Shelf guidance context and portable bitshelf agent skill.
+- Self-contained shelves with `bits/` content, local `bs.toml` settings, optional `SHELF.md`, and unchanged `shelf/slug` identifiers.
+- Shelf guidance context and portable bitshelf agent skill, including a recipe for ordinary shelf-local helpers referenced from guidance.
 - Explicit opt-in expiration with safe dry-run cleanup.
 - Temporary-store contract tests, VitePress docs, CI, and release/Homebrew automation scaffolding.

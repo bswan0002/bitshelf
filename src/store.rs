@@ -62,8 +62,19 @@ impl Store {
         }
         Ok(p)
     }
-    pub fn settings(&self, shelf: &str) -> ShelfConfig {
-        self.config.shelves.get(shelf).cloned().unwrap_or_default()
+    pub fn bits_path(&self, shelf: &str) -> Result<PathBuf> {
+        let path = self.shelf_path(shelf, true)?.join("bits");
+        self.safe(&path)?;
+        ensure!(
+            path.is_dir(),
+            "missing bits directory for shelf {shelf}; use bs shelf add {shelf}"
+        );
+        Ok(path)
+    }
+    pub fn settings(&self, shelf: &str) -> Result<ShelfConfig> {
+        let path = self.shelf_path(shelf, false)?.join("bs.toml");
+        self.safe(&path)?;
+        ShelfConfig::load(&path)
     }
     pub fn shelves(&self) -> Result<Vec<Shelf>> {
         ensure!(
@@ -71,12 +82,17 @@ impl Store {
             "store does not exist: {}; run bs init",
             self.config.store.display()
         );
-        let mut names: BTreeSet<String> = self.config.shelves.keys().cloned().collect();
+        let mut names: BTreeSet<String> = BTreeSet::new();
         for e in fs::read_dir(&self.config.store)? {
             let e = e?;
             let n = e.file_name().to_string_lossy().into_owned();
             if !n.starts_with('.') && e.file_type()?.is_dir() {
-                names.insert(n);
+                let path = e.path();
+                self.safe(&path.join("bits"))?;
+                self.safe(&path.join("bs.toml"))?;
+                if path.join("bits").try_exists()? || path.join("bs.toml").try_exists()? {
+                    names.insert(n);
+                }
             }
         }
         names
@@ -84,10 +100,10 @@ impl Store {
             .map(|name| {
                 let path = self.config.store.join(&name);
                 self.safe(&path)?;
-                let cfg = self.settings(&name);
+                let cfg = self.settings(&name)?;
                 Ok(Shelf {
-                    configured: self.config.shelves.contains_key(&name),
-                    missing: !path.is_dir(),
+                    configured: path.join("bs.toml").is_file(),
+                    missing: !path.join("bits").is_dir(),
                     guidance_available: path.join("SHELF.md").try_exists()?,
                     name,
                     path,
@@ -106,13 +122,7 @@ impl Store {
         );
         config::name(parts[0])?;
         config::name(parts[1])?;
-        ensure!(
-            parts[1] != "SHELF",
-            "SHELF.md is guidance, not a bit; use bs context"
-        );
-        let p = self
-            .shelf_path(parts[0], true)?
-            .join(format!("{}.md", parts[1]));
+        let p = self.bits_path(parts[0])?.join(format!("{}.md", parts[1]));
         self.safe(&p)?;
         Ok(p)
     }
@@ -133,7 +143,7 @@ impl Store {
                 .filter_map(|s| {
                     if s.missing {
                         eprintln!(
-                            "warning: missing shelf {}; use bs shelf add {}",
+                            "warning: missing bits directory for shelf {}; use bs shelf add {}",
                             s.name, s.name
                         );
                         None
@@ -145,11 +155,11 @@ impl Store {
         };
         let mut bits = vec![];
         for s in shelves {
-            for e in fs::read_dir(self.shelf_path(&s, true)?)? {
+            let cfg = self.settings(&s)?;
+            for e in fs::read_dir(self.bits_path(&s)?)? {
                 let e = e?;
                 let p = e.path();
                 if p.extension().is_none_or(|x| x != "md")
-                    || e.file_name() == "SHELF.md"
                     || e.file_name().to_string_lossy().starts_with('.')
                 {
                     continue;
@@ -164,7 +174,7 @@ impl Store {
                 let id = format!("{s}/{}", p.file_stem().unwrap().to_string_lossy());
                 match fs::read_to_string(&p) {
                     Ok(raw) => {
-                        let bit = bit::inspect(id, p, &raw, &self.settings(&s));
+                        let bit = bit::inspect(id, p, &raw, &cfg);
                         if report_metadata_errors {
                             for err in &bit.errors {
                                 eprintln!("warning: {}: {err}", bit.id);
