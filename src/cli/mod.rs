@@ -20,6 +20,9 @@ pub enum Commands {
     Shelf(Shelf),
     Add(Add),
     Edit(Edit),
+    Move(Move),
+    /// List configured argv aliases
+    Aliases(Empty),
     Sync(Sync),
     List(List),
     Search(Search),
@@ -111,6 +114,9 @@ pub struct Sync {
 /// List bits, optionally sorted by creation or edit time
 #[derive(Args)]
 pub struct List {
+    /// Include shelves excluded from default discovery
+    #[usage(long)]
+    pub all: bool,
     /// Include optional title metadata after each ID
     #[usage(long)]
     pub long: bool,
@@ -135,6 +141,9 @@ pub struct List {
 /// Search IDs, titles, tags and bodies (case-insensitive plain text)
 #[derive(Args)]
 pub struct Search {
+    /// Include shelves excluded from default discovery
+    #[usage(long)]
+    pub all: bool,
     /// Include optional title metadata after each ID
     #[usage(long)]
     pub long: bool,
@@ -277,3 +286,18 @@ completer!(complete_prune, Prune, false, true);
 
 completer!(complete_edit, Edit, true, false);
 completer!(complete_sync, Sync, false, true);
+
+/// Move a bit to a shelf or a new shelf/name ID without overwriting
+#[derive(Args)]
+pub struct Move {
+    #[usage(complete = complete_move)]
+    pub id: String,
+    pub destination: String,
+    /// Set a frontmatter string: KEY=VALUE (repeatable; timestamps reserved)
+    #[usage(long)]
+    pub set: Vec<String>,
+    /// Validate and preview without changing files
+    #[usage(long)]
+    pub dry_run: bool,
+}
+completer!(complete_move, Move, true, false);

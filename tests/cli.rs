@@ -1528,3 +1528,295 @@ fn output_errors_other_than_broken_pipe_still_fail() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).starts_with("error:"));
 }
+
+#[test]
+fn move_preserves_body_dates_and_transfers_tracking() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "archive"]);
+    f.write("notes/a", "---\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-02T00:00:00Z\ncustom: keep\n---\nExact\r\nbody");
+    f.ok(&["sync"]);
+    let before = fs::read_to_string(f.bit_path("notes/a")).unwrap();
+    let state = fs::read(f.root.join(".bitshelf/state.json")).unwrap();
+    let preview = f.json(&["move", "notes/a", "archive", "--dry-run", "--json"]);
+    assert_eq!(preview["id"], "archive/a");
+    assert_eq!(preview["dry_run"], true);
+    assert_eq!(
+        fs::read(f.root.join(".bitshelf/state.json")).unwrap(),
+        state
+    );
+    assert!(!f.bit_path("archive/a").exists());
+    f.ok(&["move", "notes/a", "archive"]);
+    assert!(!f.bit_path("notes/a").exists());
+    assert_eq!(fs::read_to_string(f.bit_path("archive/a")).unwrap(), before);
+    let state: Value =
+        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
+    assert!(state["entries"].get("notes/a").is_none());
+    assert!(state["entries"].get("archive/a").is_some());
+    f.ok(&[
+        "move",
+        "archive/a",
+        "notes/renamed",
+        "--set",
+        "moved_from=archive/a",
+        "--set",
+        "status=done",
+    ]);
+    let bit = f.json(&["list", "notes", "--json"]);
+    assert_eq!(bit[0]["metadata"]["created"], "2020-01-01T00:00:00Z");
+    assert_ne!(bit[0]["metadata"]["updated"], "2020-01-02T00:00:00Z");
+    assert_eq!(bit[0]["metadata"]["status"], "done");
+    assert_eq!(bit[0]["metadata"]["custom"], "keep");
+    assert_eq!(
+        f.ok(&["show", "notes/renamed", "--body"]).stdout,
+        b"Exact\r\nbody"
+    );
+    let sync = f.json(&["sync", "--json"]);
+    assert_eq!(sync["results"][0]["changed"], false);
+}
+
+#[test]
+fn move_failures_preserve_source_and_destination() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes/a"]);
+    f.ok(&["add", "notes/b"]);
+    f.ok(&["shelf", "add", "strict", "--required", "title"]);
+    let before = fs::read(f.bit_path("notes/a")).unwrap();
+    let existing = fs::read(f.bit_path("notes/b")).unwrap();
+    for args in [
+        vec!["move", "notes/a", "notes/a"],
+        vec!["move", "notes/a", "notes/b"],
+        vec!["move", "notes/a", "missing"],
+        vec!["move", "notes/a", "strict"],
+        vec!["move", "notes/a", "notes/c", "--set", "created=no"],
+        vec!["move", "notes/a", "notes/c", "--set", "updated=no"],
+        vec!["move", "notes/a", "notes/c", "--set", "broken"],
+        vec!["move", "notes/a", "notes/../escape"],
+        vec!["move", "notes/a", "notes/c", "--set", "tags=string"],
+    ] {
+        assert!(!f.run(&args).status.success(), "{args:?}");
+        assert_eq!(fs::read(f.bit_path("notes/a")).unwrap(), before);
+        assert_eq!(fs::read(f.bit_path("notes/b")).unwrap(), existing);
+        assert!(!f.bit_path("notes/c").exists());
+        assert!(!f.bit_path("strict/a").exists());
+    }
+    f.ok(&["move", "notes/a", "strict", "--set", "title=Valid"]);
+}
+
+#[test]
+fn excluded_shelves_are_explicitly_accessible_and_still_maintained() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "archive"]);
+    fs::write(f.root.join("archive/bs.toml"), "discoverable = false\n").unwrap();
+    f.ok(&["add", "notes/active"]);
+    f.ok(&["add", "archive/inactive"]);
+    assert_eq!(f.json(&["list", "--json"]).as_array().unwrap().len(), 1);
+    assert_eq!(
+        f.json(&["search", "inactive", "--json"]),
+        serde_json::json!([])
+    );
+    for args in [
+        vec!["list", "--all", "--json"],
+        vec!["search", "active", "--all", "--json"],
+    ] {
+        assert_eq!(f.json(&args).as_array().unwrap().len(), 2);
+    }
+    assert_eq!(
+        f.json(&["list", "archive", "--json"])[0]["id"],
+        "archive/inactive"
+    );
+    assert_eq!(
+        f.json(&["search", "inactive", "--shelf", "archive", "--json"])[0]["id"],
+        "archive/inactive"
+    );
+    assert_eq!(
+        f.json(&["shelf", "list", "--json"])[0]["discoverable"],
+        false
+    );
+    assert_eq!(
+        f.json(&["context", "archive", "--json"])["discoverable"],
+        false
+    );
+    f.ok(&["show", "archive/inactive"]);
+    f.ok(&["edit", "archive/inactive", "--title", "Still editable"]);
+    assert_eq!(
+        f.json(&["sync", "--json"])["results"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(f.json(&["validate", "--json"]).as_array().unwrap().len(), 2);
+    f.ok(&[
+        "shelf",
+        "add",
+        "archive",
+        "--description",
+        "Preserve settings",
+    ]);
+    assert_eq!(
+        f.json(&["context", "archive", "--json"])["discoverable"],
+        false
+    );
+}
+
+#[test]
+fn archive_is_an_argv_alias_not_a_special_command() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "archive"]);
+    let mut config = fs::read_to_string(&f.config).unwrap();
+    config.push_str("\n[aliases]\narchive = ['move', '{id}', 'archive/{shelf}.{name}', '--set', 'moved_from={id}']\n");
+    fs::write(&f.config, config).unwrap();
+    let id = "notes/a b.$(touch NEVER)";
+    f.ok(&["add", id]);
+    assert!(f.json(&["aliases", "--json"])["archive"].is_array());
+    f.ok(&["archive", "--help"]);
+    assert_eq!(
+        f.json(&["archive", id, "--dry-run", "--json"])["dry_run"],
+        true
+    );
+    assert!(f.bit_path(id).exists());
+    let result = Command::new(env!("CARGO_BIN_EXE_bs"))
+        .args([
+            "archive",
+            id,
+            "--config",
+            f.config.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let result: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(result["id"], "archive/notes.a b.$(touch NEVER)");
+    assert!(!f.bit_path(id).exists());
+    assert_eq!(
+        f.json(&["list", "archive", "--json"])[0]["metadata"]["moved_from"],
+        id
+    );
+    assert!(!f.run(&["archive", id]).status.success());
+    assert!(!f.run(&["archive"]).status.success());
+    assert!(!f.run(&["archive", id, id]).status.success());
+}
+
+#[test]
+fn alias_configuration_rejects_unsafe_or_ambiguous_definitions() {
+    let f = Fixture::new();
+    let base = fs::read_to_string(&f.config).unwrap();
+    for definition in [
+        "move = ['show', '{id}']",
+        "archive = ['archive', '{id}']",
+        "archive = ['sh', '-c', 'echo unsafe']",
+        "archive = []",
+        "archive = ['move', '{unknown}', 'archive']",
+        "archive = ['move', '{id', 'archive']",
+        "archive = 'move {id} archive'",
+    ] {
+        fs::write(&f.config, format!("{base}\n[aliases]\n{definition}\n")).unwrap();
+        assert!(
+            !f.run(&["aliases", "--json"]).status.success(),
+            "{definition}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn move_refuses_symlinks_and_preserves_permissions() {
+    use std::os::unix::{fs::PermissionsExt, fs::symlink};
+    let f = Fixture::new();
+    f.ok(&["add", "notes/a"]);
+    symlink(f.bit_path("notes/a"), f.bit_path("notes/link")).unwrap();
+    assert!(!f.run(&["move", "notes/a", "notes/link"]).status.success());
+    assert!(!f.run(&["move", "notes/link", "notes/b"]).status.success());
+    fs::set_permissions(f.bit_path("notes/a"), fs::Permissions::from_mode(0o640)).unwrap();
+    f.ok(&["move", "notes/a", "notes/b"]);
+    assert_eq!(
+        fs::metadata(f.bit_path("notes/b"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o640
+    );
+}
+
+#[test]
+fn plain_aliases_forward_arguments_and_preserve_exit_status() {
+    let f = Fixture::new();
+    let mut config = fs::read_to_string(&f.config).unwrap();
+    config.push_str(
+        "\n[aliases]\nrecent = ['list', '--sort', 'updated', '--reverse']\nfind = ['search']\n",
+    );
+    fs::write(&f.config, config).unwrap();
+    f.ok(&["add", "notes/a", "--tags", "topic"]);
+    assert_eq!(f.json(&["recent", "--json"])[0]["id"], "notes/a");
+    assert_eq!(
+        f.json(&["recent", "notes", "--tag", "topic", "--json"])[0]["id"],
+        "notes/a"
+    );
+    assert_eq!(f.json(&["find", "absent", "--json"]), serde_json::json!([]));
+    assert_eq!(
+        f.run(&["recent", "--bogus"]).status.code(),
+        f.run(&["list", "--bogus"]).status.code()
+    );
+}
+
+#[test]
+fn move_preserves_expiration_and_excluded_shelves_are_still_pruned() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "cold"]);
+    fs::write(
+        f.root.join("cold/bs.toml"),
+        "discoverable = false\nretention = '14d'\n",
+    )
+    .unwrap();
+    f.write(
+        "notes/expired",
+        "---\nexpires: 2000-01-01T00:00:00Z\n---\nbody",
+    );
+    f.ok(&["move", "notes/expired", "cold"]);
+    assert_eq!(
+        f.json(&["list", "cold", "--json"])[0]["metadata"]["expires"],
+        "2000-01-01T00:00:00Z"
+    );
+    assert_eq!(f.json(&["list", "--json"]), serde_json::json!([]));
+    assert_eq!(
+        f.json(&["prune", "--dry-run", "--json"])[0]["id"],
+        "cold/expired"
+    );
+    f.ok(&["prune"]);
+    assert!(!f.bit_path("cold/expired").exists());
+    f.ok(&["add", "notes/permanent"]);
+    f.ok(&["move", "notes/permanent", "cold"]);
+    assert!(
+        f.json(&["list", "cold", "--json"])[0]["metadata"]
+            .get("expires")
+            .is_none()
+    );
+}
+
+#[test]
+fn move_respects_lock_corrupt_state_and_destination_tag_rules() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes/a"]);
+    f.ok(&["shelf", "add", "strict"]);
+    fs::write(
+        f.root.join("strict/bs.toml"),
+        "[tag_rules.project]\nrequired = true\nallowed = ['bs']\n",
+    )
+    .unwrap();
+    assert!(!f.run(&["move", "notes/a", "strict"]).status.success());
+    let before = fs::read(f.bit_path("notes/a")).unwrap();
+    fs::write(f.root.join(".bitshelf/state.lock"), "busy").unwrap();
+    assert!(!f.run(&["move", "notes/a", "notes/b"]).status.success());
+    f.ok(&["move", "notes/a", "notes/b", "--dry-run"]);
+    fs::remove_file(f.root.join(".bitshelf/state.lock")).unwrap();
+    fs::write(f.root.join(".bitshelf/state.json"), "corrupt").unwrap();
+    assert!(!f.run(&["move", "notes/a", "notes/b"]).status.success());
+    assert_eq!(fs::read(f.bit_path("notes/a")).unwrap(), before);
+    assert!(!f.bit_path("notes/b").exists());
+}

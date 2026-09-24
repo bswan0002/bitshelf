@@ -9,6 +9,7 @@ Search IDs, titles, tags and bodies (case-insensitive plain text)
 - **`<QUERY>`**
 
 ## Flags
+- **`--all`** — Include shelves excluded from default discovery
 - **`--long`** — Include optional title metadata after each ID
 - **`--paths`** — Print filesystem paths instead of IDs
 - **`--null`** — Terminate IDs or paths with NUL instead of newline

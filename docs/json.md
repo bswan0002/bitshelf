@@ -5,14 +5,16 @@
 | Command | Result |
 | --- | --- |
 | `init` | `{config, store}` |
-| `shelf list` | `[{name, path, description, configured, missing, guidance_available, required, retention}]` |
+| `shelf list` | `[{name, path, description, configured, missing, discoverable, guidance_available, required, retention}]` |
 | `shelf add` | `{name, path}` |
 | `add` | `{id, path}` |
+| `move` | `{from, id, path, dry_run}` (destination ID/path; also used by move aliases) |
+| `aliases` | Object mapping alias names to argument arrays |
 | `edit` | `{id, path, changed}` |
 | `sync` | `{dry_run, results: [{id, changed, metadata_changed, baselined, error}]}` |
 | `list`, `search` | `[{id, path, title, tags, metadata, errors}]` |
 | `show` | `{id, path, content}` (complete Markdown by default; body only with `--body`) |
-| `context` | `{name, path, bits_path, description, required, retention, guidance}` |
+| `context` | `{name, path, bits_path, description, discoverable, required, tag_rules, retention, guidance}` |
 | `open` | `{paths: [...], opened: true}` after editor success |
 | `validate` | `[{id, path, errors, valid}]` |
 | `prune` | `[{id, path, status, error?}]` |
@@ -26,3 +28,5 @@ Validation, sync and prune may emit a complete result document and still exit 1.
 Exit codes: **0** success (including no search matches and quietly closed output pipes), **2** CLI usage errors, **1** operational or validation failures.
 
 `created` and `updated` in bit metadata are reserved CLI-managed RFC 3339 timestamps. Generated dates use UTC; equivalent valid imported representations are preserved. `edit.changed` indicates a body/user-metadata change relative to the tracking baseline, excluding reserved fields and YAML formatting. Sync uses the same `changed` meaning; `metadata_changed` indicates that timestamp reconciliation changes the Markdown file, and `baselined` indicates first-time tracking. On dry runs these describe planned changes only; nothing is written. `error` is null on success or an error string on failure. Existing valid dates survive baselining; missing dates use first-tracking time. Read-only commands never reconcile dates. `list --sort created|updated --reverse` orders by parsed timestamp, missing/invalid dates last, with deterministic identifier tie-breaking.
+
+`discoverable` defaults to true. Default list/search omit shelves where it is false; `--all` or an explicit shelf includes them. Maintenance commands still include these shelves. Move dry runs return the planned destination without writing. Configured aliases return their target command’s JSON result and exit status.

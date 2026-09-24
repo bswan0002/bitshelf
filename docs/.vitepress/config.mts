@@ -15,7 +15,7 @@ export default defineConfig({
       ]},
       { text: 'Command reference', items: [
         { text: 'bs', link: '/reference/' },
-        ...['init', 'shelf', 'add', 'edit', 'sync', 'list', 'search', 'show', 'open', 'context', 'validate', 'prune', 'completion'].map(name => ({ text: name, link: `/reference/${name}` })),
+        ...['init', 'shelf', 'add', 'edit', 'move', 'aliases', 'sync', 'list', 'search', 'show', 'open', 'context', 'validate', 'prune', 'completion'].map(name => ({ text: name, link: `/reference/${name}` })),
       ]},
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/bswan0002/bitshelf' }],

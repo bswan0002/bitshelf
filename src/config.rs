@@ -6,9 +6,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShelfConfig {
+    /// Participate in default discovery; explicit access is always available.
+    #[serde(default = "default_discoverable")]
+    pub discoverable: bool,
     pub description: Option<String>,
     #[serde(default)]
     pub required: Vec<String>,
@@ -33,9 +36,25 @@ fn valid_tag_component(value: &str) -> bool {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub aliases: BTreeMap<String, Vec<String>>,
     pub store: PathBuf,
     #[serde(default, deserialize_with = "deserialize_editor")]
     pub editor: Option<Vec<String>>,
+}
+fn default_discoverable() -> bool {
+    true
+}
+impl Default for ShelfConfig {
+    fn default() -> Self {
+        Self {
+            discoverable: true,
+            description: None,
+            required: vec![],
+            retention: None,
+            tag_rules: BTreeMap::new(),
+        }
+    }
 }
 impl ShelfConfig {
     pub fn validate(&self) -> Result<()> {
@@ -163,6 +182,7 @@ impl Config {
             !self.store.as_os_str().is_empty(),
             "store must not be empty"
         );
+        crate::aliases::validate(&self.aliases)?;
         if let Some(editor) = &self.editor {
             ensure!(
                 !editor.is_empty() && !editor[0].is_empty(),

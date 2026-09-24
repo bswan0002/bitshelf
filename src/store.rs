@@ -13,6 +13,7 @@ use std::{
 
 #[derive(Serialize)]
 pub struct Shelf {
+    pub discoverable: bool,
     pub name: String,
     pub path: PathBuf,
     pub description: Option<String>,
@@ -132,6 +133,7 @@ impl Store {
                 self.safe(&path)?;
                 let cfg = self.settings(&name)?;
                 Ok(Shelf {
+                    discoverable: cfg.discoverable,
                     configured: path.join("bs.toml").is_file(),
                     missing: !path.join("bits").is_dir(),
                     guidance_available: entry_exists(&path.join("SHELF.md"))?,
@@ -156,20 +158,29 @@ impl Store {
         self.safe(&p)?;
         Ok(p)
     }
+    pub fn discover(&self, shelf: Option<&str>, all: bool) -> Result<Vec<Bit>> {
+        self.read_bits(shelf, true, !all)
+    }
     pub fn bits(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
-        self.read_bits(shelf, true)
+        self.read_bits(shelf, true, false)
     }
     /// Sync owns its error reporting and does not enforce authoring requirements.
     pub fn bits_for_sync(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
-        self.read_bits(shelf, false)
+        self.read_bits(shelf, false, false)
     }
-    fn read_bits(&self, shelf: Option<&str>, report_metadata_errors: bool) -> Result<Vec<Bit>> {
+    fn read_bits(
+        &self,
+        shelf: Option<&str>,
+        report_metadata_errors: bool,
+        discovery: bool,
+    ) -> Result<Vec<Bit>> {
         let shelves = if let Some(s) = shelf {
             self.shelf_path(s, true)?;
             vec![s.to_owned()]
         } else {
             self.shelves()?
                 .into_iter()
+                .filter(|s| !discovery || s.discoverable)
                 .filter_map(|s| {
                     if s.missing {
                         eprintln!(

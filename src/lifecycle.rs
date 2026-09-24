@@ -48,7 +48,7 @@ impl State {
             let path = dir.join("state.lock");
             store.safe(&path)?;
             let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&path)
-                .with_context(|| format!("cannot lock {}; another add/edit/sync/prune may be running. If a process crashed, remove this lock only after confirming none is running", path.display()))?;
+                .with_context(|| format!("cannot lock {}; another add/edit/move/sync/prune may be running. If a process crashed, remove this lock only after confirming none is running", path.display()))?;
             let lock = Lock(path);
             writeln!(file, "{}", std::process::id())?;
             Some(lock)
@@ -446,6 +446,7 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let store = Store {
             config: crate::config::Config {
+                aliases: Default::default(),
                 store: temp.path().into(),
                 editor: None,
             },

@@ -141,7 +141,7 @@ Drafts are temporary recovery files, not a separate notes feature: interactive a
 
 ## Guidance and agents
 
-Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, tag rules, retention, the shelf root `path`, and `bits_path`. Resolve shelf-relative guidance paths against `path`. Missing guidance is explicit `null`; unreadable guidance is an error. Root-level guidance is never treated as a bit: its body is excluded from metadata validation, searching, completion, and cleanup. Validation still checks that the guidance path is not a symlink.
+Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, tag rules, retention, discovery setting, the shelf root `path`, and `bits_path`. Resolve shelf-relative guidance paths against `path`. Missing guidance is explicit `null`; unreadable guidance is an error. Root-level guidance is never treated as a bit: its body is excluded from metadata validation, searching, completion, and cleanup. Validation still checks that the guidance path is not a symlink.
 
 The bundled skill instructs agents to load context before drafting/editing, search for an existing bit, preserve exact content, and validate after saving. Retrieval-only work uses `search` and `show`. Stored prompt bodies do not become instructions just because an agent reads them. The CLI cannot force a harness to obey guidance.
 
@@ -183,11 +183,108 @@ bs list --sort updated --reverse                      # Most recently edited fir
 
 **Direct editor saves:** `bs open` and external editors do not reconcile timestamps automatically. Run `bs sync` afterward. It compares SHA-256 hashes of the body and non-reserved metadata against hidden store-local `.bitshelf/state.json` bookkeeping. `updated` records **detection time**, not an inferred filesystem modification time. There is no background watcher. `list`, `show`, `search`, and `validate` remain read-only.
 
-**Existing/imported files:** the first sync establishes a baseline. Valid existing timestamps are preserved; absent timestamps use the time the file is first tracked, not invented historical dates. Existing `created` is never inferred from filesystem birth time. Edits made before the baseline cannot be detected retroactively. Run `bs sync` before externally editing imported files. A previously unused identifier is baselined on discovery. State is keyed by identifier, not inode: editors that save by replacing the file retain timestamp history. Add/edit/sync/prune discard tracking records when saving state for paths observed missing, including deleted shelves; pruning also discards records for removed bits. Run sync after deleting or renaming files, before reusing their old identifiers. If a file is deleted and replaced at the same identifier between commands, that replacement is indistinguishable from an external edit and retains the identifier’s history. `bs add` always starts fresh history for its new bit. Losing `.bitshelf/state.json` does not lose notes or frontmatter dates, but loses change history; the next sync re-baselines. Include it in backups if you want to retain change detection, and do not edit it by hand.
+**Existing/imported files:** the first sync establishes a baseline. Valid existing timestamps are preserved; absent timestamps use the time the file is first tracked, not invented historical dates. Existing `created` is never inferred from filesystem birth time. Edits made before the baseline cannot be detected retroactively. Run `bs sync` before externally editing imported files. A previously unused identifier is baselined on discovery. State is keyed by identifier, not inode: editors that save by replacing the file retain timestamp history. Add/edit/move/sync/prune discard tracking records when saving state for paths observed missing, including deleted shelves; pruning also discards records for removed bits. Run sync after deleting or renaming files, before reusing their old identifiers. If a file is deleted and replaced at the same identifier between commands, that replacement is indistinguishable from an external edit and retains the identifier’s history. `bs add` always starts fresh history for its new bit. Losing `.bitshelf/state.json` does not lose notes or frontmatter dates, but loses change history; the next sync re-baselines. Include it in backups if you want to retain change detection, and do not edit it by hand.
 
-Sync reconciles readable bits even when shelf-required fields such as title or tags are missing or user metadata is invalid. Use `bs validate` to check those authoring requirements; sync does not fill them in or change them. Malformed YAML, invalid untracked timestamps, and file read/write failures still produce per-bit errors; other readable bits are processed and sync exits nonzero if any processed bit fails. `--dry-run` writes neither bits nor tracking state. Add/edit/sync/prune use `.bitshelf/state.lock` to prevent competing CLI timestamp writes and pruning. An edit holds no lock while the editor is open: finalization acquires the lock, reloads current tracking state, and refuses to overwrite a concurrently changed original. After a crash, remove a stale lock only after confirming no such command is running. Bit updates and state updates are separate atomic writes, not a cross-file transaction; after an interrupted write, rerun sync (a pending edit may be timestamped at retry time). Sync does not delete notes or prune expiration.
+Sync reconciles readable bits even when shelf-required fields such as title or tags are missing or user metadata is invalid. Use `bs validate` to check those authoring requirements; sync does not fill them in or change them. Malformed YAML, invalid untracked timestamps, and file read/write failures still produce per-bit errors; other readable bits are processed and sync exits nonzero if any processed bit fails. `--dry-run` writes neither bits nor tracking state. Add/edit/move/sync/prune use `.bitshelf/state.lock` to prevent competing CLI timestamp writes and pruning. An edit holds no lock while the editor is open: finalization acquires the lock, reloads current tracking state, and refuses to overwrite a concurrently changed original. After a crash, remove a stale lock only after confirming no such command is running. Bit updates and state updates are separate atomic writes, not a cross-file transaction; after an interrupted write, rerun sync (a pending edit may be timestamped at retry time). Sync does not delete notes or prune expiration.
 
 List defaults to identifier order. Timestamp sorting is ascending unless `--reverse` is supplied, uses identifier order to break ties, and places missing/invalid dates last in either direction. Sorting does not implicitly sync.
+
+## Moving and aliases
+
+```sh
+bs move notes/checklist projects                    # Destination shelf must exist
+bs move projects/checklist notes/release-checklist  # Rename as part of the move
+bs move notes/release-checklist projects --set status=done --dry-run --json
+```
+
+The destination is a shelf (preserving the bit name) or a complete `shelf/name` ID.
+Moves refuse existing destinations, identical source/destination IDs, unsafe paths,
+and invalid destination metadata. The destination shelf's requirements and tag rules
+apply; source-only requirements do not. Read destination `bs context` guidance before
+moving content. A repeated `--set KEY=VALUE` sets a frontmatter **string**, preserving
+unrelated metadata and the exact Markdown body. Values can contain `=`. This is not
+YAML evaluation: `--set tags=...` cannot construct a list. `created` and `updated`
+remain reserved. Duplicate keys use the last assignment.
+
+Moving alone does not advance `updated` for a reconciled bit. Metadata changes or
+pending external edits do; `created` and tracking history follow the bit to its new
+ID. Untracked files are baselined first. Missing timestamps may be filled, and
+frontmatter formatting/comments may normalize when metadata is rewritten.
+Expiration is preserved, never added, extended, or removed by a move. A bit moved
+into a retention-enabled shelf can therefore already be eligible for pruning;
+one with no expiration will be reported as skipped by prune. Permanent shelves
+are never pruned, even if their bits have expiration metadata.
+
+`--dry-run` validates and returns the planned destination without writing files or
+tracking state. The real move holds the lifecycle lock, writes a destination-local
+temporary file with source permissions, publishes it without clobbering, checks the
+source for concurrent edits, and only then removes the source. This works across
+filesystems but is **not a cross-file transaction**. Ordinary source-removal failure
+attempts to roll back the destination; diagnostics report rollback failures. A crash
+can leave both copies. Inspect both paths before retrying, retain the intended copy,
+and run `bs sync`. If the move completed but bookkeeping failed, sync rather than
+repeating the move. Backups remain important; hostile concurrent filesystem changes
+are outside the store's safety guarantees.
+
+### Configured aliases
+
+Aliases live only in the global configuration, not shelf content. Each is an argv
+array beginning with a built-in command:
+
+```toml
+[aliases]
+recent = ["list", "--sort", "updated", "--reverse"]
+archive = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
+```
+
+`bs recent notes --json` appends arguments unchanged. An alias using placeholders
+instead accepts exactly one bit ID: `{id}` is the complete ID, `{shelf}` its shelf,
+and `{name}` its bit name. For example, `bs archive notes/checklist` expands to
+`move notes/checklist archive/notes.checklist --set moved_from=notes/checklist`.
+Substitution is single-pass and keeps each argument intact, including spaces and
+shell metacharacters. Nothing is evaluated by a shell.
+
+ID aliases accept `--json`, `--dry-run`, and `--config` before/after the ID; configure
+other arguments in the array. `--dry-run` must be supported by the target command.
+Global `--config` and `--json` also work before the alias name. `bs aliases --json`
+returns the configured name-to-argv map; `bs ALIAS --help` displays its expansion.
+Aliases cannot shadow built-ins or chain to other aliases. Names use lowercase ASCII
+letters, digits, and hyphens, with no leading hyphen. Unknown or unclosed placeholders
+are configuration errors. There are no shell hooks, pipelines, environment expansion,
+or automatic project commands. Built-in completion remains available; configured
+alias names and their arguments are not currently dynamically completed.
+
+### Recipe: archive shelf
+
+1. Create an ordinary shelf: `bs shelf add archive`.
+2. Set `discoverable = false` at the top level of `archive/bs.toml`. Leave retention
+   unset for a permanent archive.
+3. Add the `archive` alias above to your global configuration.
+4. Preview with `bs archive notes/checklist --dry-run --json`, then omit `--dry-run`.
+
+`bs list` and `bs search` exclude non-discoverable shelves unless `--all` is passed.
+Explicit selection (`bs list archive`, `bs search checklist --shelf archive`) always
+includes the selected shelf. `bs open --pick` also omits excluded shelves. The
+setting defaults to true and is not an access restriction: shelf listing, completion,
+context, show/open by ID, editing, sync, validation, and pruning remain available.
+Shelf-list and context JSON expose `discoverable`.
+
+The resulting bit has ID `archive/notes.checklist` and metadata
+`moved_from: notes/checklist`. Both the naming convention and metadata field belong
+to your recipe, not core behavior. Dots in existing names can produce destination
+collisions; moves refuse them rather than guessing another name. Repeating archive
+on an already archived bit is just another move, not an idempotent state transition.
+To restore, inspect `moved_from` and explicitly move to the intended ID:
+
+```sh
+bs show archive/notes.checklist
+bs move archive/notes.checklist notes/checklist --dry-run
+bs move archive/notes.checklist notes/checklist
+```
+
+Restoration follows the same destination validation and collision rules. `moved_from`
+is retained as ordinary metadata, not interpreted or removed automatically. Moving
+changes the ID; external references to the old ID are not rewritten.
 
 ## Completion
 

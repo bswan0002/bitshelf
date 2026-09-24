@@ -1,3 +1,4 @@
+mod aliases;
 mod bit;
 mod cli;
 mod completion;
@@ -7,6 +8,7 @@ mod editor;
 mod input;
 mod interactive;
 mod lifecycle;
+mod moving;
 mod output;
 mod prune;
 mod store;
@@ -35,7 +37,7 @@ fn usage_check(condition: bool, message: &str) -> Result<()> {
     Ok(())
 }
 fn main() {
-    if let Err(err) = run(Bs::parse()) {
+    if let Err(err) = aliases::dispatch().and_then(|()| run(Bs::parse())) {
         if err
             .downcast_ref::<std::io::Error>()
             .is_some_and(|e| e.kind() == std::io::ErrorKind::BrokenPipe)
@@ -79,6 +81,7 @@ fn run(args: Bs) -> Result<()> {
         )?;
         let root = config::resolve(&c.store.unwrap(), path.parent().unwrap())?;
         let cfg = Config {
+            aliases: Default::default(),
             store: root.clone(),
             editor: c
                 .editor
@@ -278,6 +281,24 @@ fn run(args: Bs) -> Result<()> {
             }
             emit(&json!({"id":id,"path":dest}), json_output, id)
         }
+        Commands::Move(c) => {
+            let result = moving::run(&store, c)?;
+            let id = result["id"].as_str().unwrap_or("");
+            let human = if result["dry_run"] == true {
+                format!(
+                    "Would move {} -> {id} (no files changed)",
+                    result["from"].as_str().unwrap_or("")
+                )
+            } else {
+                id.to_owned()
+            };
+            emit(&result, json_output, human)
+        }
+        Commands::Aliases(_) => emit(
+            &store.config.aliases,
+            json_output,
+            toml::to_string_pretty(&store.config.aliases)?,
+        ),
         Commands::Edit(c) => {
             let result = lifecycle::edit(&store, c, json_output)?;
             emit(&result, json_output, result["id"].as_str().unwrap_or(""))
@@ -318,7 +339,7 @@ fn run(args: Bs) -> Result<()> {
         Commands::List(c) => {
             output::check_listing(json_output, c.long, c.paths, c.null)?;
             let mut bits: Vec<_> = store
-                .bits(c.shelf.as_deref())?
+                .discover(c.shelf.as_deref(), c.all)?
                 .into_iter()
                 .filter(|b| c.tag.as_ref().is_none_or(|t| b.tags.contains(t)))
                 .collect();
@@ -347,7 +368,7 @@ fn run(args: Bs) -> Result<()> {
             output::check_listing(json_output, c.long, c.paths, c.null)?;
             let query = c.query.to_lowercase();
             let bits: Vec<_> = store
-                .bits(c.shelf.as_deref())?
+                .discover(c.shelf.as_deref(), c.all)?
                 .into_iter()
                 .filter(|b| {
                     format!(
@@ -391,7 +412,7 @@ fn run(args: Bs) -> Result<()> {
                 interactive::require(json_output)?;
                 c.target = interactive::pick(
                     &store
-                        .bits(None)?
+                        .discover(None, false)?
                         .into_iter()
                         .map(|b| b.id)
                         .collect::<Vec<_>>(),

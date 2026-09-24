@@ -64,6 +64,27 @@ bs list --sort updated --reverse                # Recently edited first
 
 `created` and `updated` are **reserved, automatic fields**—do not set them manually. Generated timestamps use UTC; valid imported dates retain their representation. Once a bit is tracked and reconciled, no-op edits do not advance `updated`. Sync detects changes using hidden store-local hashes; first-time tracking baselines existing files, preserving valid dates and filling missing dates with discovery time. Sync imported files once before editing them externally. See [editing and automatic timestamps](docs/guide.md#editing-and-automatic-timestamps).
 
+## Moving and archive recipes
+
+```sh
+bs move notes/checklist projects                  # Keep the bit name
+bs move notes/checklist projects/release-checklist --dry-run
+```
+
+Moves validate the destination shelf, refuse collisions, and carry timestamp history.
+Archive is a recipe, not a special bit state: create an ordinary `archive` shelf,
+set `discoverable = false` in its `bs.toml`, and add this to your global config:
+
+```toml
+[aliases]
+archive = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
+```
+
+Then use `bs archive notes/checklist`. Default list/search omit excluded shelves;
+`bs list --all` or `bs list archive` includes them. `bs aliases` lists your configured
+shortcuts. Aliases expand argument arrays, never shell scripts. See the
+[archive recipe and move safety](docs/guide.md#moving-and-aliases) before configuring.
+
 ## Agent workflow
 
 Install the executable separately from the skill:
@@ -109,6 +130,6 @@ The Rust CLI is synchronous, one application package, with no search index; hidd
 
 - Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64.
 - Symlinks in managed shelf paths are never followed, even when they point inside the store. Discovery skips linked shelves/bits; validation reports disallowed links as errors. The explicitly configured store root can be a symlink. Do not use a store writable by untrusted users; filesystem checks are not a defense against hostile concurrent path replacement.
-- Shelf configuration saves normalize TOML formatting/comments; `bs edit` and `bs sync` may normalize YAML formatting/comments while preserving bodies. Direct filesystem edits require `bs sync` to reconcile timestamps.
+- Shelf configuration saves normalize TOML formatting/comments; `bs edit`, `bs move`, and `bs sync` may normalize YAML formatting/comments while preserving bodies. Direct filesystem edits require `bs sync` to reconcile timestamps.
 - A draft is retained on editor/validation/finalization failure. Known GUI editors get `--wait` for add/edit drafts; unknown commands/wrappers must be configured to block until editing finishes (the CLI warns).
 - The release workflow does not sign or notarize macOS archives. See the release procedure for publishing and Homebrew configuration.

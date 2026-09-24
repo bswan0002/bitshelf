@@ -2,6 +2,10 @@
 
 ## 0.1.0 — Unreleased prototype
 
+- Validated, no-clobber `bs move` with renaming, string metadata assignments, dry runs, and timestamp-history transfer.
+- Configured argv aliases with safe ID templates; archive shelf recipe without archive-specific storage or hooks.
+- Shelf `discoverable = false` excludes default list/search and open picker results; explicit access, `--all`, and maintenance remain available.
+
 - Rust `bs` CLI with Usage declarations, generated help/reference/man page, and self-contained dynamic completion.
 - TOML/XDG configuration, discoverable shelves, verbatim Markdown ingestion, frontmatter validation, plain-text search, and JSON results.
 - Configured/environment editors, Demand setup, draft authoring, and filtered multi-open selection.
