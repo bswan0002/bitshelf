@@ -3,9 +3,9 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'bitshelf',
   description: 'Local Markdown-first storage for people and agents',
-  base: '/bitshelf/',
+  base: '/',
   themeConfig: {
-    nav: [{ text: 'Guide', link: '/guide' }, { text: 'CLI', link: '/reference/' }],
+    nav: [{ text: 'Guide', link: '/guide' }, { text: 'CLI', link: '/reference/' }, { text: 'Ben Swanson', link: 'https://benswanson.dev' }],
     sidebar: [
       { text: 'Development documentation', items: [
         { text: 'Overview', link: '/' },
