@@ -250,28 +250,34 @@ fn run(args: Bs) -> Result<()> {
                     editor::Purpose::Draft,
                 )
                 .with_context(|| format!("draft preserved at {}", p.display()))?;
-                raw = fs::read_to_string(&p)?;
+                store
+                    .safe(&p)
+                    .with_context(|| format!("unsafe draft; recovery path: {}", p.display()))?;
+                raw = fs::read_to_string(&p).with_context(|| {
+                    format!("cannot read draft; recovery path: {}", p.display())
+                })?;
                 draft = Some(p);
             }
-            raw = lifecycle::new_bit(&raw, created_at)?;
-            let checked = bit::inspect(id.clone(), destination, &raw, &cfg);
-            ensure!(
-                checked.errors.is_empty(),
-                "invalid metadata: {}{}",
-                checked.errors.join(", "),
-                draft
-                    .as_ref()
-                    .map(|p| format!("; draft preserved at {}", p.display()))
-                    .unwrap_or_default()
-            );
-            let mut state = lifecycle::State::load(&store, true)?;
-            state.remember(&id, &raw)?;
-            let dest = store.write_bit(&id, &raw)?;
-            state.save(&store)?;
-            if let Some(p) = draft
-                && let Err(e) = fs::remove_file(&p)
-            {
-                eprintln!("warning: could not remove draft {}: {e}", p.display());
+            let saved = (|| -> Result<PathBuf> {
+                raw = lifecycle::new_bit(&raw, created_at)?;
+                let checked = bit::inspect(id.clone(), destination, &raw, &cfg);
+                ensure!(
+                    checked.errors.is_empty(),
+                    "invalid metadata: {}",
+                    checked.errors.join(", "),
+                );
+                let mut state = lifecycle::State::load(&store, true)?;
+                state.remember(&id, &raw)?;
+                let dest = store.write_bit(&id, &raw)?;
+                state.save_after_bit(&store, &id)?;
+                Ok(dest)
+            })();
+            let dest = saved.with_context(|| match &draft {
+                Some(p) => format!("add did not complete; draft preserved at {}", p.display()),
+                None => "add did not complete".into(),
+            })?;
+            if let Some(p) = draft {
+                lifecycle::cleanup_draft(&p);
             }
             emit(&json!({"id":id,"path":dest}), json_output, id)
         }
@@ -413,27 +419,28 @@ fn run(args: Bs) -> Result<()> {
             emit(&json!({"paths":targets,"opened":true}), json_output, "")
         }
         Commands::Validate(c) => {
-            let bits = store.bits(c.shelf.as_deref())?;
-            let mut results: Vec<_> = bits.iter().map(|b| json!({"id":b.id,"path":b.path,"errors":b.errors,"valid":b.errors.is_empty()})).collect();
-            if c.shelf.is_none() {
-                for s in store.shelves()?.into_iter().filter(|s| s.missing) {
-                    results.push(json!({"id":null,"path":s.path,"errors":[format!("missing bits directory for shelf {}; use bs shelf add {}", s.name, s.name)],"valid":false}));
-                }
-            }
-            let valid = results.iter().all(|v| v["valid"] == true);
-            emit(
-                &results,
-                json_output,
-                if valid {
-                    "Validation passed"
-                } else {
-                    "Validation failed"
-                },
-            )?;
+            let results = store.validate(c.shelf.as_deref())?;
+            let valid = results.iter().all(|v| v.valid);
+            let human = if valid {
+                "Validation passed".into()
+            } else {
+                results
+                    .iter()
+                    .filter(|r| !r.valid)
+                    .map(|r| format!("{}: {}", r.path.display(), r.errors.join(", ")))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            emit(&results, json_output, human)?;
             ensure!(valid, "validation failed");
             Ok(())
         }
         Commands::Prune(c) => {
+            let mut state = if c.dry_run {
+                None
+            } else {
+                Some(lifecycle::State::load(&store, true)?)
+            };
             let now = Utc::now();
             let bits = store.bits(c.shelf.as_deref())?;
             let mut results = vec![];
@@ -456,8 +463,14 @@ fn run(args: Bs) -> Result<()> {
                 if !c.dry_run {
                     fs::remove_file(&b.path)
                         .with_context(|| format!("cannot remove {}", b.path.display()))?;
+                    state.as_mut().unwrap().forget(&b.id);
                 }
                 results.push(json!({"id":b.id,"path":b.path,"status":if c.dry_run {"would_remove"} else {"removed"}}));
+            }
+            if let Some(state) = state {
+                state.save(&store).context(
+                    "pruning may have removed files, but tracking state could not be saved; fix the error and run bs sync",
+                )?;
             }
             let human = results
                 .iter()

@@ -191,3 +191,68 @@ fn gui_draft_gets_wait_flag_but_open_does_not() {
             .starts_with("--reuse-window\n")
     );
 }
+
+#[test]
+fn failed_add_drafts_have_recovery_paths_for_each_failure_stage() {
+    for failure in ["editor", "yaml", "validation", "lock"] {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = tmp.path().join("config.toml");
+        let store = tmp.path().join("store");
+        fs::create_dir_all(store.join("notes/bits")).unwrap();
+        let editor = tmp.path().join("editor.sh");
+        let script = match failure {
+            "editor" => "printf '\\nunfinished' >> \"$1\"\nexit 1\n".into(),
+            "yaml" => "printf '%s' '---\ntitle: [\n---\nunfinished' > \"$1\"\n".into(),
+            "validation" => "printf '%s' '---\ntitle: []\n---\nunfinished' > \"$1\"\n".into(),
+            "lock" => format!(
+                "mkdir '{}'\nprintf busy > '{}/state.lock'\n",
+                store.join(".bitshelf").display(),
+                store.join(".bitshelf").display()
+            ),
+            _ => unreachable!(),
+        };
+        fs::write(&editor, script).unwrap();
+        fs::write(
+            &config,
+            format!(
+                "store = '{}'\neditor = ['/bin/sh', '{}']\n",
+                store.display(),
+                editor.display(),
+            ),
+        )
+        .unwrap();
+        let mut terminal = Terminal::spawn(
+            &config,
+            &[
+                "add",
+                "notes",
+                "--interactive",
+                "--title",
+                "Draft",
+                "--tags",
+                "test",
+            ],
+            &[],
+        );
+        assert_eq!(terminal.finish(), 1, "{failure}: {}", terminal.screen());
+        assert!(
+            terminal.screen().contains("draft preserved at"),
+            "{failure}: {}",
+            terminal.screen()
+        );
+        let drafts: Vec<_> = fs::read_dir(store.join("notes/bits"))
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        assert_eq!(drafts.len(), 1);
+        assert!(
+            drafts[0]
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with(".draft-")
+        );
+        assert!(drafts[0].is_file());
+        assert!(!store.join("notes/bits/draft.md").exists());
+    }
+}

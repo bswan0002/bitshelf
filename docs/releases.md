@@ -1,6 +1,6 @@
 # Installation and releases
 
-## Available now: source installation
+## Source installation
 
 Install stable Rust using [rustup](https://rustup.rs), then run in this checkout:
 
@@ -10,11 +10,11 @@ cargo install --path . --locked && bs completion install
 
 The completion installer previews changes and asks for confirmation. Start a new shell afterward. Repeat after updating the checkout to upgrade. The executable is `bs`, not `bitshelf`. No Node.js or Usage CLI is needed to run it. See [completion setup](guide.md#completion) for shell overrides, dry runs and uninstall.
 
-Binary releases and a personal Homebrew tap are **prepared but not provisioned by this prototype**. Do not assume the following release routes are live until the maintainer publishes a tag and configures the tap.
+Release publication is triggered by version tags. Homebrew updates require the repository variable and secret described in the maintainer checklist.
 
-## Prepared release routes
+## Release routes
 
-After release provisioning:
+For a release published to the configured personal tap:
 
 ```sh
 brew install bswan0002/tap/bitshelf && bs completion install
@@ -50,7 +50,7 @@ The formula generator consumes checksums, never placeholder hashes:
 python3 scripts/homebrew-formula.py v0.1.0 SHA256SUMS > bitshelf.rb
 ```
 
-Release and Pages jobs have not been executed merely by building the local prototype. CI credentials, repository settings, runner availability, and cross-platform install behavior must be verified in GitHub. The workflow does not perform signing, notarization, Packslip attestations, or crates.io publishing.
+Configure CI credentials and repository settings for the release and Pages workflows. The workflow does not perform signing, notarization, Packslip attestations, or crates.io publishing.
 
 ## Agent skill installation
 
