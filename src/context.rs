@@ -12,6 +12,6 @@ pub fn load(store: &Store, name: &str) -> Result<Value> {
     };
     let cfg = store.settings(name)?;
     Ok(
-        json!({"name": name, "path": path, "bits_path": path.join("bits"), "description": cfg.description, "required": cfg.required, "retention": cfg.retention, "guidance": guidance}),
+        json!({"name": name, "path": path, "bits_path": path.join("bits"), "description": cfg.description, "required": cfg.required, "tag_rules": cfg.tag_rules, "retention": cfg.retention, "guidance": guidance}),
     )
 }

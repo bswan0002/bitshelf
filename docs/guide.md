@@ -28,6 +28,30 @@ required = ["title", "tags"]
 # retention = "14d" # Optional; omit for permanent storage
 ```
 
+### Namespaced tag rules
+
+Configure tag namespaces in a shelf's `bs.toml`:
+
+```toml
+[tag_rules.project]
+required = true
+allowed = ["bitshelf", "switchboard", "data-explorer"]
+```
+
+Bits still use ordinary string tags, for example:
+
+```yaml
+tags: ["project:bitshelf", "rust", "kind:guide"]
+```
+
+`required = true` requires at least one tag in that namespace; it defaults to false. Every tag in a configured namespace must have an allowed value. Multiple allowed project tags are fine. Ordinary tags and unconfigured namespaces remain unrestricted. Matching is exact and case-sensitive, with no automatic normalization. An empty value such as `project:` is invalid for a configured namespace.
+
+`allowed` is mandatory and must be nonempty, with no duplicates. Namespace names and allowed values must be nonempty and contain no whitespace, control characters, colons, or commas. Unknown rule settings are rejected. The existing `required = ["tags"]` checks field presence only; namespace requirements enforce membership independently.
+
+Use existing flags, such as `bs add docs --title Setup --tags project:bitshelf,rust --file setup.md` and `bs list docs --tag project:bitshelf`. Add/edit reject invalid metadata; directly edited invalid bits remain readable and `bs validate` reports violations. Changing rules does not rewrite bits. `bs context docs` (including `--json`) exposes the complete `tag_rules` so authors can discover requirements before writing. Edit shelf TOML directly to manage these rules.
+
+### Configuration paths
+
 Leading `~/` expands to HOME. Other relative paths resolve against the global config directory, including `init --store` values. Invalid or unknown config settings fail clearly. `shelf add` creates `bits/` and writes `bs.toml`, preserving existing contents/settings unless a supplied option changes a setting. Edit shelf TOML directly to remove retention; edit global TOML to remove an editor setting. Missing `bs.toml` uses default shelf settings.
 
 ```text
@@ -86,7 +110,7 @@ Drafts are temporary recovery files, not a separate notes feature: interactive a
 
 ## Guidance and agents
 
-Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, retention, the shelf root `path`, and `bits_path`. Resolve shelf-relative guidance paths against `path`. Missing guidance is explicit `null`; unreadable guidance is an error. Root-level guidance is never treated as a bit: its body is excluded from metadata validation, searching, completion, and cleanup. Validation still checks that the guidance path is not a symlink.
+Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, tag rules, retention, the shelf root `path`, and `bits_path`. Resolve shelf-relative guidance paths against `path`. Missing guidance is explicit `null`; unreadable guidance is an error. Root-level guidance is never treated as a bit: its body is excluded from metadata validation, searching, completion, and cleanup. Validation still checks that the guidance path is not a symlink.
 
 The bundled skill instructs agents to load context before drafting/editing, search for an existing bit, preserve exact content, and validate after saving. Retrieval-only work uses `search` and `show`. Stored prompt bodies do not become instructions just because an agent reads them. The CLI cannot force a harness to obey guidance.
 

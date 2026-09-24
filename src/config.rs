@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeMap,
     env, fs,
     path::{Path, PathBuf},
 };
@@ -12,6 +13,22 @@ pub struct ShelfConfig {
     #[serde(default)]
     pub required: Vec<String>,
     pub retention: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub tag_rules: BTreeMap<String, TagRule>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct TagRule {
+    #[serde(default)]
+    pub required: bool,
+    pub allowed: Vec<String>,
+}
+
+fn valid_tag_component(value: &str) -> bool {
+    !value.is_empty()
+        && !value
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || c == ':' || c == ',')
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -27,6 +44,27 @@ impl ShelfConfig {
                 ["title", "tags", "created", "updated", "expires"].contains(&r.as_str()),
                 "unsupported required field {r}"
             );
+        }
+        for (namespace, rule) in &self.tag_rules {
+            ensure!(
+                valid_tag_component(namespace),
+                "invalid tag namespace {namespace:?}: expected a nonempty string without whitespace, colons, commas, or control characters"
+            );
+            ensure!(
+                !rule.allowed.is_empty(),
+                "tag_rules.{namespace}.allowed must not be empty"
+            );
+            let mut seen = std::collections::BTreeSet::new();
+            for value in &rule.allowed {
+                ensure!(
+                    valid_tag_component(value),
+                    "invalid allowed value {value:?} for tag namespace {namespace}: expected a nonempty string without whitespace, colons, commas, or control characters"
+                );
+                ensure!(
+                    seen.insert(value),
+                    "duplicate allowed value {value:?} for tag namespace {namespace}"
+                );
+            }
         }
         if let Some(r) = &self.retention {
             retention(r)?;
@@ -164,6 +202,35 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tag_rule_configuration_validation() {
+        for text in [
+            "[tag_rules.project]\nallowed = []",
+            "[tag_rules.project]\nrequired = true",
+            "[tag_rules.project]\nallowed = ['a', 'a']",
+            "[tag_rules.project]\nallowed = ['']",
+            "[tag_rules.project]\nallowed = ['a:b']",
+            "[tag_rules.project]\nallowed = ['a,b']",
+            "[tag_rules.project]\nallowed = ['a b']",
+            "[tag_rules.'']\nallowed = ['a']",
+            "[tag_rules.'a:b']\nallowed = ['a']",
+            "[tag_rules.project]\nallowed = ['a']\nunknown = true",
+        ] {
+            assert!(
+                toml::from_str::<ShelfConfig>(text)
+                    .and_then(|cfg| { cfg.validate().map_err(serde::de::Error::custom) })
+                    .is_err(),
+                "{text}"
+            );
+        }
+        let cfg: ShelfConfig =
+            toml::from_str("[tag_rules.project]\nallowed = ['bitshelf']").unwrap();
+        cfg.validate().unwrap();
+        assert!(!cfg.tag_rules["project"].required);
+        let serialized = toml::to_string(&cfg).unwrap();
+        let roundtrip: ShelfConfig = toml::from_str(&serialized).unwrap();
+        assert_eq!(roundtrip.tag_rules["project"].allowed, ["bitshelf"]);
+    }
     fn parse(editor: &str) -> Result<Config> {
         let config: Config = toml::from_str(&format!("store = '/tmp/bitshelf'\n{editor}"))?;
         config.validate()?;
