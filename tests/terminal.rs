@@ -167,7 +167,7 @@ fn gui_draft_gets_wait_flag_but_open_does_not() {
         &config,
         &[
             "add",
-            "notes",
+            "notes/draft",
             "--interactive",
             "--title",
             "Draft",
@@ -225,7 +225,7 @@ fn failed_add_drafts_have_recovery_paths_for_each_failure_stage() {
             &config,
             &[
                 "add",
-                "notes",
+                "notes/draft",
                 "--interactive",
                 "--title",
                 "Draft",
@@ -255,4 +255,26 @@ fn failed_add_drafts_have_recovery_paths_for_each_failure_stage() {
         assert!(drafts[0].is_file());
         assert!(!store.join("notes/bits/draft.md").exists());
     }
+}
+
+#[test]
+fn interactive_add_asks_for_name_not_title() {
+    let tmp = tempfile::tempdir().unwrap();
+    let config = tmp.path().join("config.toml");
+    let store = tmp.path().join("store");
+    fs::create_dir_all(store.join("notes/bits")).unwrap();
+    fs::write(
+        &config,
+        format!("store = '{}'\neditor = ['true']\n", store.display()),
+    )
+    .unwrap();
+    let mut terminal = Terminal::spawn(&config, &["add", "--interactive", "--tags", "test"], &[]);
+    terminal.wait_for("Choose shelf");
+    terminal.send("\r");
+    terminal.wait_for("Bit name");
+    terminal.send("readable name\r");
+    assert_eq!(terminal.finish(), 0, "{}", terminal.screen());
+    let raw = fs::read_to_string(store.join("notes/bits/readable name.md")).unwrap();
+    assert!(!raw.contains("title:"));
+    assert!(terminal.screen().contains("notes/readable name"));
 }

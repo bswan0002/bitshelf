@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub struct Bit {
     pub id: String,
     pub path: PathBuf,
-    pub title: String,
+    pub title: Option<String>,
     pub tags: Vec<String>,
     pub metadata: serde_json::Value,
     pub errors: Vec<String>,
@@ -85,8 +85,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         .get("title")
         .and_then(Value::as_str)
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| id.split('/').next_back().unwrap())
-        .to_string();
+        .map(str::to_owned);
     let tags: Vec<String> = map
         .get("tags")
         .and_then(Value::as_sequence)
@@ -143,24 +142,18 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         expires,
     }
 }
-pub fn slug(title: &str) -> String {
-    title
-        .to_lowercase()
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
-}
 pub fn create(
-    title: &str,
+    title: Option<&str>,
     tags: Option<&str>,
     body: &str,
     cfg: &ShelfConfig,
     now: DateTime<Utc>,
 ) -> Result<String> {
-    ensure!(!title.trim().is_empty(), "title must not be empty");
     let mut map = Mapping::new();
-    map.insert("title".into(), title.into());
+    if let Some(title) = title {
+        ensure!(!title.trim().is_empty(), "title must not be empty");
+        map.insert("title".into(), title.into());
+    }
     map.insert(
         "created".into(),
         now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
@@ -240,7 +233,7 @@ mod tests {
             "\r\n  exact\r\n",
             "no final newline",
         ] {
-            let raw = create("Title: quoted", Some("a,b"), body, &cfg, now).unwrap();
+            let raw = create(Some("Title: quoted"), Some("a,b"), body, &cfg, now).unwrap();
             let (map, recovered) = parse(&raw).unwrap();
             assert_eq!(recovered.as_bytes(), body.as_bytes());
             assert_eq!(map["created"].as_str(), Some("2026-01-01T23:59:59Z"));
@@ -264,7 +257,7 @@ mod tests {
             "body",
             &cfg,
         );
-        assert_eq!(b.title, "plain");
+        assert_eq!(b.title, None);
         assert_eq!(b.errors, vec!["missing required field: title"]);
     }
 }

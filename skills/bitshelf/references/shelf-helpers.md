@@ -40,7 +40,7 @@ Example workflow after checking that helper's usage, from the shelf root:
 body=$(mktemp)
 python3 scripts/import-confluence.py 'https://example.atlassian.net/wiki/...' > "$body"
 # Check successful retrieval and inspect the body before proceeding.
-bs add my-confluence-shelf --title 'Feature design' --file "$body" \
+bs add my-confluence-shelf/feature-design --title 'Feature design' --file "$body" \
   --tags my-feature-repo,my-current-project --json
 bs validate my-confluence-shelf --json
 rm "$body"

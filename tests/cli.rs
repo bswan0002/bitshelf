@@ -76,7 +76,7 @@ fn verbatim_workflow_and_collision() {
     let mut child = f
         .command(&[
             "add",
-            "notes",
+            "notes/exact-prompt",
             "--title",
             "Exact Prompt",
             "--stdin",
@@ -119,19 +119,12 @@ fn verbatim_workflow_and_collision() {
         serde_json::json!([])
     );
     assert_eq!(
-        f.run(&["add", "notes", "--title", "Exact Prompt"])
+        f.run(&["add", "notes/exact-prompt", "--title", "Exact Prompt"])
             .status
             .code(),
         Some(1)
     );
-    f.ok(&[
-        "add",
-        "notes",
-        "--title",
-        "Exact Prompt",
-        "--slug",
-        "another",
-    ]);
+    f.ok(&["add", "notes/another", "--title", "Exact Prompt"]);
     f.ok(&["validate", "--json"]);
 }
 #[test]
@@ -182,11 +175,11 @@ fn guidance_requirements_and_missing_shelves() {
     assert_eq!(f.json(&["list", "ui", "--json"]), serde_json::json!([]));
     f.ok(&["validate", "ui"]);
     assert!(
-        !f.run(&["add", "ui", "--title", "Missing tags"])
+        !f.run(&["add", "ui/missing-tags", "--title", "Missing tags"])
             .status
             .success()
     );
-    f.ok(&["add", "ui", "--title", "Valid", "--tags", "react"]);
+    f.ok(&["add", "ui/valid", "--title", "Valid", "--tags", "react"]);
     fs::remove_dir_all(f.root.join("ui/bits")).unwrap();
     assert!(
         f.json(&["shelf", "list", "--json"])
@@ -235,7 +228,7 @@ fn expiration_is_opt_in_explicit_and_safe() {
     ] {
         assert!(f.bit_path(p).exists());
     }
-    f.ok(&["add", "tmp", "--title", "New"]);
+    f.ok(&["add", "tmp/new", "--title", "New"]);
     let rows = f.json(&["list", "tmp", "--json"]);
     let new = rows
         .as_array()
@@ -254,14 +247,14 @@ fn usage_errors_and_config_errors_have_distinct_statuses() {
     let f = Fixture::new();
     for args in [
         vec!["add"],
-        vec!["add", "notes", "--title", "x", "--stdin", "--file", "x"],
+        vec!["add", "notes/x", "--title", "x", "--stdin", "--file", "x"],
         vec!["shelf", "add"],
         vec!["unknown"],
     ] {
         assert_eq!(f.run(&args).status.code(), Some(2), "{args:?}");
     }
     assert_eq!(
-        f.run(&["add", "notes", "--title", "escape", "--slug", "../evil"])
+        f.run(&["add", "notes/../evil", "--title", "escape"])
             .status
             .code(),
         Some(1)
@@ -292,7 +285,11 @@ fn refuses_symlink_writes_reads_and_pruning() {
     )
     .unwrap();
     symlink(external.path(), f.root.join("escape")).unwrap();
-    assert!(!f.run(&["add", "escape", "--title", "Bad"]).status.success());
+    assert!(
+        !f.run(&["add", "escape/bad", "--title", "Bad"])
+            .status
+            .success()
+    );
     assert!(!f.run(&["shelf", "add", "escape"]).status.success());
     f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
     symlink(
@@ -356,7 +353,7 @@ fn dynamic_completion_uses_current_store_and_override() {
         assert!(out.status.success());
         String::from_utf8(out.stdout).unwrap()
     };
-    assert!(complete("add n").contains("notes"));
+    assert!(complete("add n").contains("notes/"));
     f.write("notes/fresh", "body");
     f.write("notes/SHELF", "guidance");
     assert!(complete("open notes/").contains("notes/fresh"));
@@ -372,7 +369,7 @@ fn dynamic_completion_uses_current_store_and_override() {
 #[test]
 fn edit_and_sync_manage_reserved_timestamps_and_preserve_body() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Tracked"]);
+    f.ok(&["add", "notes/tracked", "--title", "Tracked"]);
     let path = f.root.join("notes/bits/tracked.md");
     let before = fs::read_to_string(&path).unwrap();
     let metadata = |raw: &str| -> serde_yaml::Value {
@@ -519,7 +516,7 @@ fn chronological_sort_and_updated_validation() {
 #[test]
 fn editor_edit_waits_and_preserves_drafts_on_failure() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Edit me"]);
+    f.ok(&["add", "notes/edit-me", "--title", "Edit me"]);
     let path = f.root.join("notes/bits/edit-me.md");
     let initial = fs::read_to_string(&path).unwrap();
     let script = f._temp.path().join("editor.sh");
@@ -559,7 +556,7 @@ fn editor_edit_waits_and_preserves_drafts_on_failure() {
 #[test]
 fn invalid_edit_does_not_change_file_or_tracking_and_lock_is_respected() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Safe"]);
+    f.ok(&["add", "notes/safe", "--title", "Safe"]);
     let path = f.root.join("notes/bits/safe.md");
     let state = f.root.join(".bitshelf/state.json");
     let raw = fs::read(&path).unwrap();
@@ -631,7 +628,7 @@ fn stdin_edit_preserves_unknown_metadata_expiration_and_reserved_dates() {
 #[test]
 fn concurrent_direct_edits_are_not_overwritten_and_corrupt_state_is_not_discarded() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Concurrent"]);
+    f.ok(&["add", "notes/concurrent", "--title", "Concurrent"]);
     let path = f.root.join("notes/bits/concurrent.md");
     let script = f._temp.path().join("editor.sh");
     fs::write(
@@ -684,7 +681,7 @@ fn lifecycle_refuses_symlinked_bits_and_internal_state() {
     symlink(&state_dir, f.root.join(".bitshelf")).unwrap();
     assert!(!f.run(&["sync", "--json"]).status.success());
     assert!(
-        !f.run(&["add", "notes", "--title", "Unsafe"])
+        !f.run(&["add", "notes/unsafe", "--title", "Unsafe"])
             .status
             .success()
     );
@@ -768,13 +765,13 @@ fn shelf_local_configuration_and_storage_are_portable() {
     );
     assert_eq!(context["path"], f.root.join("renamed").to_str().unwrap());
     assert!(
-        !f.run(&["add", "renamed", "--title", "No tags"])
+        !f.run(&["add", "renamed/no-tags", "--title", "No tags"])
             .status
             .success()
     );
     f.ok(&[
         "add",
-        "renamed",
+        "renamed/tagged",
         "--title",
         "Tagged",
         "--tags",
@@ -889,7 +886,7 @@ fn refuses_symlinked_bits_directories_and_shelf_configs() {
     symlink(external.path(), f.root.join("notes/bits")).unwrap();
     for args in [
         vec!["list"],
-        vec!["add", "notes", "--title", "Bad"],
+        vec!["add", "notes/bad", "--title", "Bad"],
         vec!["shelf", "add", "notes"],
     ] {
         assert!(!f.run(&args).status.success());
@@ -919,10 +916,10 @@ fn refuses_symlinked_bits_directories_and_shelf_configs() {
 #[test]
 fn editor_does_not_hold_store_lock_and_commit_reloads_state() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Editing"]);
+    f.ok(&["add", "notes/editing", "--title", "Editing"]);
     let script = f._temp.path().join("editor.sh");
     fs::write(&script, format!(
-        "set -eu\n'{}' --config '{}' add notes --title Parallel\n'{}' --config '{}' sync\nprintf '\\neditor content' >> \"$1\"\n",
+        "set -eu\n'{}' --config '{}' add notes/parallel --title Parallel\n'{}' --config '{}' sync\nprintf '\\neditor content' >> \"$1\"\n",
         env!("CARGO_BIN_EXE_bs"), f.config.display(),
         env!("CARGO_BIN_EXE_bs"), f.config.display(),
     )).unwrap();
@@ -954,10 +951,10 @@ fn editor_does_not_hold_store_lock_and_commit_reloads_state() {
 #[test]
 fn sync_forgets_missing_paths_without_changing_live_history() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Deleted"]);
-    f.ok(&["add", "notes", "--title", "Live"]);
+    f.ok(&["add", "notes/deleted", "--title", "Deleted"]);
+    f.ok(&["add", "notes/live", "--title", "Live"]);
     f.ok(&["shelf", "add", "removed"]);
-    f.ok(&["add", "removed", "--title", "Old"]);
+    f.ok(&["add", "removed/old", "--title", "Old"]);
     let state_path = f.root.join(".bitshelf/state.json");
     let before = fs::read(&state_path).unwrap();
     let tracked: Value = serde_json::from_slice(&before).unwrap();
@@ -990,7 +987,7 @@ fn sync_forgets_missing_paths_without_changing_live_history() {
 #[test]
 fn rename_sync_and_rename_back_starts_fresh_tracking() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Original"]);
+    f.ok(&["add", "notes/original", "--title", "Original"]);
     fs::rename(f.bit_path("notes/original"), f.bit_path("notes/moved")).unwrap();
     assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
     fs::rename(f.bit_path("notes/moved"), f.bit_path("notes/original")).unwrap();
@@ -1004,7 +1001,7 @@ fn rename_sync_and_rename_back_starts_fresh_tracking() {
 #[test]
 fn atomic_external_save_preserves_history_and_detects_changes() {
     let f = Fixture::new();
-    f.ok(&["add", "notes", "--title", "Atomic"]);
+    f.ok(&["add", "notes/atomic", "--title", "Atomic"]);
     let path = f.bit_path("notes/atomic");
     let before = f.json(&["list", "--json"])[0]["metadata"].clone();
     let replacement = f._temp.path().join("replacement.md");
@@ -1126,7 +1123,7 @@ fn explicit_symlink_store_root_is_supported() {
         format!("store = '{}'\neditor = ['true']\n", root_link.display()),
     )
     .unwrap();
-    f.ok(&["add", "notes", "--title", "Safe"]);
+    f.ok(&["add", "notes/safe", "--title", "Safe"]);
     f.ok(&["sync"]);
     f.ok(&["edit", "notes/safe", "--title", "Updated"]);
     f.ok(&["validate"]);
@@ -1219,7 +1216,7 @@ allowed = ["bitshelf", "switchboard"]
     ] {
         let out = f.run(&[
             "add",
-            "notes",
+            "notes/rejected",
             "--title",
             "Rejected",
             "--tags",
@@ -1232,7 +1229,7 @@ allowed = ["bitshelf", "switchboard"]
     }
     f.ok(&[
         "add",
-        "notes",
+        "notes/valid",
         "--title",
         "Valid",
         "--tags",
@@ -1280,4 +1277,254 @@ allowed = ["bitshelf", "switchboard"]
     .unwrap();
     assert!(!f.run(&["validate", "notes"]).status.success());
     assert_eq!(fs::read(f.bit_path("notes/valid")).unwrap(), before);
+}
+
+#[test]
+fn id_first_creation_and_optional_titles() {
+    let f = Fixture::new();
+    let out = f.ok(&["add", "notes/My readable.name"]);
+    assert_eq!(out.stdout, b"notes/My readable.name\n");
+    let bit = &f.json(&["list", "--json"])[0];
+    assert_eq!(bit["id"], "notes/My readable.name");
+    assert!(bit["title"].is_null());
+    assert!(bit["metadata"].get("title").is_none());
+    f.ok(&["validate"]);
+    assert_eq!(
+        f.run(&["add", "notes/My readable.name"]).status.code(),
+        Some(1)
+    );
+    assert!(
+        !f.run(&["add", "notes/blank", "--title", " "])
+            .status
+            .success()
+    );
+    assert!(!f.bit_path("notes/blank").exists());
+    assert!(
+        !f.run(&["add", "notes", "--title", "No generated name"])
+            .status
+            .success()
+    );
+    assert_eq!(
+        f.run(&["add", "notes/x", "--slug", "y"]).status.code(),
+        Some(2)
+    );
+
+    f.ok(&["shelf", "add", "titled", "--required", "title"]);
+    let missing = f.run(&["add", "titled/required"]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("missing required field: title"));
+    assert!(!f.bit_path("titled/required").exists());
+    f.ok(&["add", "titled/required", "--title", "Optional globally"]);
+    assert_eq!(
+        f.json(&["list", "titled", "--json"])[0]["title"],
+        "Optional globally"
+    );
+    // The ID remains searchable even with a different explicit title.
+    assert_eq!(
+        f.ok(&["search", "TITLED/REQUIRED"]).stdout,
+        b"titled/required\n"
+    );
+}
+
+#[test]
+fn list_and_search_output_modes() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes/a space"]);
+    f.ok(&["add", "notes/b", "--title", "Description"]);
+    for base in [vec!["list"], vec!["search", "notes/"]] {
+        let run = |flags: &[&str]| {
+            let mut args = base.clone();
+            args.extend_from_slice(flags);
+            f.ok(&args).stdout
+        };
+        assert_eq!(run(&[]), b"notes/a space\nnotes/b\n");
+        assert_eq!(run(&["--long"]), b"notes/a space\t\nnotes/b\tDescription\n");
+        assert_eq!(run(&["--null"]), b"notes/a space\0notes/b\0");
+        for (flags, delimiter) in [(vec!["--paths"], '\n'), (vec!["--paths", "--null"], '\0')] {
+            let expected = format!(
+                "{}{delimiter}{}{delimiter}",
+                f.bit_path("notes/a space").display(),
+                f.bit_path("notes/b").display()
+            );
+            assert_eq!(run(&flags), expected.as_bytes());
+        }
+        assert_eq!(
+            serde_json::from_slice::<Value>(&run(&["--json"]))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        for flags in [
+            vec!["--long", "--paths"],
+            vec!["--long", "--null"],
+            vec!["--json", "--long"],
+            vec!["--json", "--paths"],
+            vec!["--json", "--null"],
+        ] {
+            let mut args = base.clone();
+            args.extend(flags);
+            let out = f.run(&args);
+            assert_eq!(out.status.code(), Some(2), "{args:?}");
+            assert!(out.stdout.is_empty());
+        }
+    }
+    assert_eq!(
+        f.ok(&["list", "--reverse"]).stdout,
+        b"notes/b\nnotes/a space\n"
+    );
+    for flags in [
+        vec![],
+        vec!["--long"],
+        vec!["--null"],
+        vec!["--paths", "--null"],
+    ] {
+        let mut args = vec!["search", "no matches"];
+        args.extend(flags);
+        assert!(f.ok(&args).stdout.is_empty());
+    }
+    assert!(
+        f.ok(&["list", "--tag", "missing", "--null"])
+            .stdout
+            .is_empty()
+    );
+}
+
+#[test]
+fn dash_input_and_body_output_preserve_exact_bytes() {
+    let f = Fixture::new();
+    let input = |args: &[&str], body: &str| {
+        let mut child = f
+            .command(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(body.as_bytes())
+            .unwrap();
+        let out = child.wait_with_output().unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    for (i, body) in [
+        "",
+        "no final newline",
+        "\r\nexact\r\n",
+        "---\ntitle: body, not metadata\n---\ntext",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let id = format!("notes/exact-{i}");
+        input(&["add", &id, "--file", "-"], body);
+        assert_eq!(f.ok(&["show", &id, "--body"]).stdout, body.as_bytes());
+        assert_eq!(f.json(&["show", &id, "--body", "--json"])["content"], *body);
+        input(&["edit", &id, "--file", "-", "--json"], body);
+        assert_eq!(f.ok(&["show", &id, "--body"]).stdout, body.as_bytes());
+        input(&["edit", &id, "--file", "-"], "replacement\r\n");
+        assert_eq!(f.ok(&["show", &id, "--body"]).stdout, b"replacement\r\n");
+    }
+    f.write("notes/plain", "plain\r\nbody");
+    assert_eq!(
+        f.ok(&["show", "notes/plain", "--body"]).stdout,
+        b"plain\r\nbody"
+    );
+    f.write("notes/crlf", "---\r\ntitle: title\r\n---\r\nbody\r\n");
+    assert_eq!(f.ok(&["show", "notes/crlf", "--body"]).stdout, b"body\r\n");
+    f.write("notes/broken", "---\ntitle: [\n---\nbody");
+    assert!(f.run(&["show", "notes/broken", "--body"]).stdout.is_empty());
+    assert_eq!(
+        f.run(&["show", "notes/broken", "--body"]).status.code(),
+        Some(1)
+    );
+    for command in ["add", "edit"] {
+        assert_eq!(
+            f.run(&[command, "notes/plain", "--file", "-", "--stdin"])
+                .status
+                .code(),
+            Some(2)
+        );
+        let id = if command == "add" {
+            "notes/new-missing"
+        } else {
+            "notes/plain"
+        };
+        let out = f.run(&[command, id, "--file", "missing-file"]);
+        assert_eq!(out.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains("cannot read missing-file"));
+    }
+}
+
+#[test]
+fn closed_output_pipes_exit_quietly() {
+    let f = Fixture::new();
+    f.write("notes/large", &"content\n".repeat(100_000));
+    for args in [
+        vec!["list"],
+        vec!["list", "--json"],
+        vec!["list", "--null"],
+        vec!["search", "content"],
+        vec!["show", "notes/large"],
+        vec!["show", "notes/large", "--body"],
+        vec!["show", "notes/large", "--json"],
+        vec!["completion", "--shell", "bash"],
+    ] {
+        // Close the read end before spawning: deterministic even for tiny output.
+        let (reader, writer) = std::io::pipe().unwrap();
+        drop(reader);
+        let out = f.command(&args).stdout(writer).output().unwrap();
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(
+            out.stderr.is_empty(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn path_output_preserves_non_utf8_filenames() {
+    use std::os::unix::ffi::OsStringExt;
+    let f = Fixture::new();
+    let path = f
+        .root
+        .join("notes/bits")
+        .join(std::ffi::OsString::from_vec(b"odd-\xff.md".to_vec()));
+    fs::write(&path, "body").unwrap();
+    let mut expected = path.as_os_str().as_encoded_bytes().to_vec();
+    expected.push(0);
+    assert_eq!(f.ok(&["list", "--paths", "--null"]).stdout, expected);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn output_errors_other_than_broken_pipe_still_fail() {
+    let f = Fixture::new();
+    f.write("notes/plain", "body");
+    let out = f
+        .command(&["show", "notes/plain"])
+        .stdout(
+            fs::OpenOptions::new()
+                .write(true)
+                .open("/dev/full")
+                .unwrap(),
+        )
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).starts_with("error:"));
 }

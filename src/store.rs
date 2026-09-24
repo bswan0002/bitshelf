@@ -148,7 +148,7 @@ impl Store {
         let parts: Vec<_> = id.split('/').collect();
         ensure!(
             parts.len() == 2,
-            "expected shelf/slug identifier (without .md)"
+            "expected shelf/bit-name identifier (without .md)"
         );
         config::name(parts[0])?;
         config::name(parts[1])?;
@@ -217,7 +217,7 @@ impl Store {
                         bits.push(Bit {
                             id,
                             path: p,
-                            title: String::new(),
+                            title: None,
                             tags: vec![],
                             metadata: serde_json::Value::Null,
                             errors: vec![err.to_string()],
@@ -326,9 +326,8 @@ impl Store {
         let path = self.bit_path(id)?;
         let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
         tmp.write_all(raw.as_bytes())?;
-        tmp.persist_noclobber(&path).with_context(|| {
-            format!("cannot create {id}; if it exists, choose --slug ALTERNATIVE")
-        })?;
+        tmp.persist_noclobber(&path)
+            .with_context(|| format!("cannot create {id}; if it exists, choose a different ID"))?;
         Ok(path)
     }
 }

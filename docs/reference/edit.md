@@ -9,7 +9,7 @@ Edit a bit via your editor, or replace its body/metadata noninteractively
 - **`<ID>`**
 
 ## Flags
-- **`--file <FILE>`** — Replace the body from a file (not frontmatter)
+- **`--file <FILE>`** — Read a body from a file, or - for stdin
 - **`--stdin`**
 - **`--title <TITLE>`**
 - **`--tags <TAGS>`** — Replace tags with a comma-separated list

@@ -7,7 +7,7 @@ These are development docs for bitshelf 0.1.x, potentially ahead of a published 
 ```sh
 bs init --store ~/bitshelf --editor code
 bs shelf add notes
-bs shelf add tmp --required title --retention 14d
+bs shelf add tmp --retention 14d
 ```
 
 Setup never overwrites an existing configuration. No-argument `init` offers Demand prompts in a terminal. JSON and piped/noninteractive commands never prompt. Use `--config PATH` before or after a subcommand to select a different store.
@@ -24,7 +24,7 @@ Each shelf owns its settings in `<store>/<shelf>/bs.toml`, for example:
 
 ```toml
 description = "Reusable UI patterns"
-required = ["title", "tags"]
+required = ["tags"]
 # retention = "14d" # Optional; omit for permanent storage
 ```
 
@@ -48,7 +48,7 @@ tags: ["project:bitshelf", "rust", "kind:guide"]
 
 `allowed` is mandatory and must be nonempty, with no duplicates. Namespace names and allowed values must be nonempty and contain no whitespace, control characters, colons, or commas. Unknown rule settings are rejected. The existing `required = ["tags"]` checks field presence only; namespace requirements enforce membership independently.
 
-Use existing flags, such as `bs add docs --title Setup --tags project:bitshelf,rust --file setup.md` and `bs list docs --tag project:bitshelf`. Add/edit reject invalid metadata; directly edited invalid bits remain readable and `bs validate` reports violations. Changing rules does not rewrite bits. `bs context docs` (including `--json`) exposes the complete `tag_rules` so authors can discover requirements before writing. Edit shelf TOML directly to manage these rules.
+Use existing flags, such as `bs add docs/setup --tags project:bitshelf,rust --file setup.md` and `bs list docs --tag project:bitshelf`. Add/edit reject invalid metadata; directly edited invalid bits remain readable and `bs validate` reports violations. Changing rules does not rewrite bits. `bs context docs` (including `--json`) exposes the complete `tag_rules` so authors can discover requirements before writing. Edit shelf TOML directly to manage these rules.
 
 ### Configuration paths
 
@@ -66,18 +66,20 @@ Leading `~/` expands to HOME. Other relative paths resolve against the global co
 
 Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones created in your file manager. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory; `bs shelf add NAME` repairs it. Removing a whole shelf removes it from discovery; there is no global registry. In shelf-list JSON, `configured` means `bs.toml` exists and `missing` means `bits/` is absent or not a directory.
 
-Bits are direct, non-hidden `.md` files inside `bits/`, identified as `shelf/filename` without the suffix or `bits/` component. Everything else in the shelf is ignored and preserved by content operations. No nested bits or search index; internal `.bitshelf/` state tracks content hashes for timestamp reconciliation, not bit discovery. Renames change identifiers immediately. Spaces and dots in manually authored filenames are supported; quote identifiers in the shell.
+Bits are direct, non-hidden `.md` files inside `bits/`, identified as `shelf/filename` without the suffix or `bits/` component. Everything else in the shelf is ignored and preserved by content operations. No nested bits or search index; internal `.bitshelf/` state tracks content hashes for timestamp reconciliation, not bit discovery. Renames change identifiers immediately. Spaces and dots in bit names are supported; quote identifiers in the shell. An ID is exactly `shelf/bit-name`, not a separate UUID. Supply it directly to `add`; names are not generated from titles.
 
 ## Saving exact content
 
 ```sh
-bs add notes --title 'Release checklist' --tags release --file checklist.md
-printf '%s' 'An exact prompt' | bs add tmp --title 'Original prompt' --stdin
+bs add notes/release-checklist --tags release --file checklist.md
+printf '%s' 'An exact prompt' | bs add tmp/original-prompt --file -
 ```
 
-`--stdin` and `--file` are mutually exclusive. The body is preserved byte-for-byte for valid UTF-8 Markdown, including CRLF and absent final newlines. Generated YAML frontmatter precedes it. Input is a **body**, not an existing frontmatter document to merge. Collisions fail; choose `--slug another-name`. Empty bodies are allowed.
+`--file -` reads stdin, as does `--stdin`; the two flags are mutually exclusive. The body is preserved byte-for-byte for valid UTF-8 Markdown, including CRLF and absent final newlines. Generated YAML frontmatter precedes it. Input is a **body**, not an existing frontmatter document to merge. Collisions fail; choose a different ID. Empty bodies are allowed.
 
-**`created` and `updated` are reserved, automatically managed timestamps.** Generated dates use UTC; valid imported dates retain their representation. Users and agents must not supply or manually edit them. CLI creation sets both to the creation time, along with a title, optional tags, and `expires` on retention shelves. Built-in field types are checked, along with shelf requirements. Required `tags` means a list must exist (it may be empty). Unknown bit metadata is retained. Malformed bits are still available through `show` and `open`, and listings include diagnostics rather than hiding other files.
+Title metadata is optional unless the shelf explicitly sets `required = ["title"]`. Use `--title TEXT` for an extra description; supplied titles must be nonempty. IDs are the default display names, and title changes never rename a bit.
+
+**`created` and `updated` are reserved, automatically managed timestamps.** Generated dates use UTC; valid imported dates retain their representation. Users and agents must not supply or manually edit them. CLI creation sets both to the creation time, along with optional title/tags metadata, and `expires` on retention shelves. Built-in field types are checked, along with shelf requirements. Required `tags` means a list must exist (it may be empty). Unknown bit metadata is retained. Malformed bits are still available through `show` and `open`, and listings include diagnostics rather than hiding other files.
 
 ```sh
 bs list notes --tag release
@@ -86,7 +88,34 @@ bs show notes/release-checklist
 bs validate notes
 ```
 
-Search is case-insensitive plain-text matching across title, tags, and body; results are sorted by identifier. No-match searches succeed. Direct file editing is supported; run `bs sync` afterward to reconcile timestamps. Read-only commands never reset timestamps.
+Search is case-insensitive plain-text matching across ID, optional title, tags, and body; results are sorted by identifier. No-match searches succeed. Direct file editing is supported; run `bs sync` afterward to reconcile timestamps. Read-only commands never reset timestamps.
+
+### Output and pipelines
+
+`list` and `search` print one ID per line by default:
+
+- `--long` prints `ID<TAB>title`; missing titles leave an empty title column.
+- `--paths` prints absolute filesystem paths instead of IDs.
+- `--null` terminates each ID/path with NUL (including the last), for tools such as `xargs -0`.
+- `--json` emits rich structured results. It cannot be combined with these text-output flags.
+
+`--long` cannot be combined with `--paths` or `--null`. Empty text results produce no output.
+Use `--null` for safe ID/path composition, and JSON rather than parsing descriptive titles.
+
+`show` prints the entire unmodified file. `show --body` removes frontmatter and preserves the
+body exactly, including line endings and absent final newlines. A file without frontmatter
+is all body; malformed frontmatter causes `--body` to fail rather than guess. With `--json`,
+the same selection is returned in `content`.
+
+```sh
+bs list notes --paths --null | xargs -0 rg 'pattern'
+bs show notes/release-checklist --body | bs add notes/checklist-copy --file -
+printf '%s' 'Replacement body' | bs edit notes/checklist-copy --file -
+```
+
+Closed output pipes (for example, a consumer exiting early) terminate quietly with status 0.
+Other output errors remain failures. Results are still collected in memory; these flags do
+not introduce incremental processing.
 
 ## Editors and interactive workflows
 
@@ -97,8 +126,10 @@ bs open                           # store directory
 bs open ui                        # shelf directory
 bs open ui/menu notes/checklist   # multiple files
 bs open --pick                    # filtered Demand multiselection
-bs add --interactive              # choose shelf, metadata, edit draft
+bs add --interactive              # choose shelf, bit name, tags; edit draft
 ```
+
+Interactive add does not ask for a title. Supply `--title` or add it in the draft if the shelf requires one. Passing an ID (`bs add notes/draft --interactive`) skips shelf/name selection.
 
 The selected editor must support directory/multiple-file opening for those operations. Opening a shelf does not expand it into every file.
 
@@ -125,7 +156,7 @@ For an example helper that writes a cleaned Markdown body to stdout, guidance co
 After retrieving and checking the body, save it with:
 
 ```sh
-bs add my-confluence-shelf --title 'Feature design' --file /tmp/confluence-body.md \
+bs add my-confluence-shelf/feature-design --title 'Feature design' --file /tmp/confluence-body.md \
   --tags my-feature-repo,my-current-project --json
 bs validate my-confluence-shelf --json
 ```
@@ -146,7 +177,7 @@ bs list --sort created --reverse                      # Newest created first
 bs list --sort updated --reverse                      # Most recently edited first
 ```
 
-`edit --file` and `--stdin` take **body-only** input, just like `add`. They are mutually exclusive. `--title` and `--tags` replace those fields; an empty tags argument clears tags. With no mutation flags, `bs edit ID` opens a temporary draft in your configured editor and waits. The original bit is replaced only after editor success, metadata validation, and a check that the original has not changed concurrently. Failed edits retain the draft and report its path. JSON mode requires explicit mutation flags and never launches an editor.
+`edit --file` (including `--file -`) and `--stdin` take **body-only** input, just like `add`. They are mutually exclusive. `--title` and `--tags` replace those fields; an empty tags argument clears tags. With no mutation flags, `bs edit ID` opens a temporary draft in your configured editor and waits. The original bit is replaced only after editor success, metadata validation, and a check that the original has not changed concurrently. Failed edits retain the draft and report its path. JSON mode requires explicit mutation flags and never launches an editor.
 
 **Reserved fields:** `created` is immutable after tracking begins. `updated` advances automatically for a real content or user-metadata change. A no-op edit of a tracked, reconciled bit leaves timestamps unchanged; first-time tracking can fill missing dates, and an edit can detect a pending external change. CLI editing and sync preserve expiration and unknown metadata; neither extends retention. Manual changes to tracked `created`/`updated` fields are restored from the last known values. There are no flags for setting them. Timestamp rewrites may normalize YAML formatting/comments; the Markdown body is preserved verbatim. Frontmatter key order, comments, and reserved timestamp changes alone are not content changes.
 
@@ -192,7 +223,7 @@ mkdir -p ~/.config/fish/completions
 bs completion --shell fish > ~/.config/fish/completions/bs.fish
 ```
 
-Completions call the installed `bs` at Tab time. New shelves/files appear immediately. Type `bs open ui/` to complete bits, `bs add ` for shelves, or `--shelf ` for filters. Config overrides typed before the cursor are honored. Completion does not initialize or change a store. Elvish, Nushell and PowerShell scripts are also generated by Usage; shell-specific activation is left to those shells' setup.
+Completions call the installed `bs` at Tab time. New shelves/files appear immediately. Type `bs open ui/` to complete bits, `bs add ` for shelf prefixes such as `ui/` (then type a new bit name), or `--shelf ` for filters. Config overrides typed before the cursor are honored. Completion does not initialize or change a store. Elvish, Nushell and PowerShell scripts are also generated by Usage; shell-specific activation is left to those shells' setup.
 
 ## Expiration and scheduling
 

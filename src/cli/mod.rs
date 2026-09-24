@@ -69,13 +69,14 @@ pub struct ShelfAdd {
 #[derive(Args)]
 pub struct Add {
     #[usage(complete = complete_add)]
-    pub shelf: Option<String>,
+    /// Identifier: shelf/bit-name (no .md extension)
+    pub id: Option<String>,
+    /// Optional descriptive title; the identifier is the display name
     #[usage(long)]
     pub title: Option<String>,
     #[usage(long)]
     pub tags: Option<String>,
-    #[usage(long)]
-    pub slug: Option<String>,
+    /// Read a body from a file, or - for stdin
     #[usage(long)]
     pub file: Option<PathBuf>,
     #[usage(long)]
@@ -88,7 +89,7 @@ pub struct Add {
 pub struct Edit {
     #[usage(complete = complete_edit)]
     pub id: String,
-    /// Replace the body from a file (not frontmatter)
+    /// Read a body from a file, or - for stdin
     #[usage(long)]
     pub file: Option<PathBuf>,
     #[usage(long)]
@@ -110,6 +111,16 @@ pub struct Sync {
 /// List bits, optionally sorted by creation or edit time
 #[derive(Args)]
 pub struct List {
+    /// Include optional title metadata after each ID
+    #[usage(long)]
+    pub long: bool,
+    /// Print filesystem paths instead of IDs
+    #[usage(long)]
+    pub paths: bool,
+    /// Terminate IDs or paths with NUL instead of newline
+    #[usage(long)]
+    pub null: bool,
+
     /// Sort ascending by identifier (default), creation time or last edit
     #[usage(long, choices("id", "created", "updated"))]
     pub sort: Option<String>,
@@ -121,9 +132,19 @@ pub struct List {
     #[usage(long)]
     pub tag: Option<String>,
 }
-/// Search titles, tags and bodies (case-insensitive plain text)
+/// Search IDs, titles, tags and bodies (case-insensitive plain text)
 #[derive(Args)]
 pub struct Search {
+    /// Include optional title metadata after each ID
+    #[usage(long)]
+    pub long: bool,
+    /// Print filesystem paths instead of IDs
+    #[usage(long)]
+    pub paths: bool,
+    /// Terminate IDs or paths with NUL instead of newline
+    #[usage(long)]
+    pub null: bool,
+
     pub query: String,
     #[usage(long, complete = complete_search)]
     pub shelf: Option<String>,
@@ -131,6 +152,9 @@ pub struct Search {
 /// Print complete, unmodified Markdown
 #[derive(Args)]
 pub struct Show {
+    /// Print only the body, without frontmatter
+    #[usage(long)]
+    pub body: bool,
     #[usage(complete = complete_show)]
     pub id: String,
 }
@@ -234,7 +258,15 @@ macro_rules! completer {
         }
     };
 }
-completer!(complete_add, Add, false, true);
+fn complete_add(
+    _: &<Add as usage::spec::CommandArgs>::Partial,
+    ctx: &usage::complete::CompleteCtx<'_>,
+) -> Vec<usage::complete::Candidate<'static>> {
+    candidates(false, true, ctx)
+        .into_iter()
+        .map(|c| usage::complete::Candidate::new(format!("{}/", c.value)))
+        .collect()
+}
 completer!(complete_list, List, false, true);
 completer!(complete_search, Search, false, true);
 completer!(complete_show, Show, true, false);

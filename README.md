@@ -15,9 +15,9 @@ cargo install --path . --locked
 bs completion install
 # Start a new shell to activate completion.
 bs init --store ~/bitshelf
-bs shelf add ui --description 'Reusable UI' --required title,tags
+bs shelf add ui --description 'Reusable UI' --required tags
 printf '%s\n' 'A reusable React command-menu pattern.' | \
-  bs add ui --title 'Command menu' --tags react --stdin
+  bs add ui/command-menu --tags react --stdin
 bs search 'menu' --json
 bs show ui/command-menu
 # Optional: open with an installed editor.
@@ -25,7 +25,7 @@ bs show ui/command-menu
 VISUAL=vim bs open ui/command-menu
 ```
 
-`bs init` creates a default `notes` shelf. Without arguments it offers terminal setup, using `$VISUAL` or `$EDITOR` automatically when set. `bs add --interactive` prompts for metadata and opens a draft; recognized GUI editors get a waiting flag automatically. `bs open --pick` provides filtered multiselection.
+`bs init` creates a default `notes` shelf. Without arguments it offers terminal setup, using `$VISUAL` or `$EDITOR` automatically when set. `bs add --interactive` prompts for a shelf, bit name, and tags, then opens a draft; recognized GUI editors get a waiting flag automatically. `bs open --pick` provides filtered multiselection.
 
 Shell setup detects `$SHELL` (Bash, Zsh or Fish), previews changes, and asks before writing. No separate Usage executable is needed:
 
@@ -36,6 +36,22 @@ bs completion uninstall           # Remove only managed setup
 ```
 
 Use `--yes` to approve without prompting. Restart your shell afterward (Bash login shells must source `~/.bashrc` from their profile); `bs context <Tab>` suggests available shelves. Installation is safe to repeat and does not install the agent skill. See [completion setup](docs/guide.md#completion) for paths, limitations and manual activation.
+
+## IDs and pipelines
+
+A bit's ID is `shelf/bit-name`, corresponding to `<store>/<shelf>/bits/<bit-name>.md`.
+Names are supplied directly, not generated from titles. Title metadata is optional
+unless a shelf explicitly requires it; add it with `--title` when useful.
+
+```sh
+bs list                           # One ID per line
+bs search menu --long             # IDs and optional titles
+bs list notes --paths --null | xargs -0 rg 'pattern'
+bs show ui/command-menu --body | bs add notes/menu-copy --file -
+```
+
+List/search also support `--json` for structured results. `--file -` reads stdin
+for add/edit; `--stdin` remains available. Closed output pipes exit quietly.
 
 ## Editing and timestamps
 

@@ -52,7 +52,7 @@ print(f'''class Bitshelf < Formula
   test do
     config = testpath/"config.toml"
     system bin/"bs", "--config", config, "init", "--store", testpath/"store"
-    system bin/"bs", "--config", config, "add", "notes", "--title", "Brew test"
+    system bin/"bs", "--config", config, "add", "notes/brew-test"
     assert_match "notes/brew-test", shell_output("#{{bin}}/bs --config #{{config}} list --json")
   end
 end''')

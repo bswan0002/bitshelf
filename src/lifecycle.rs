@@ -325,16 +325,8 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         raw
     } else {
         let (mut map, body) = bit::parse(&original)?;
-        let body = if let Some(file) = args.file {
-            fs::read_to_string(file)?
-        } else if args.stdin {
-            use std::io::Read;
-            let mut text = String::new();
-            std::io::stdin().read_to_string(&mut text)?;
-            text
-        } else {
-            body.into()
-        };
+        let body =
+            crate::input::body(args.file.as_deref(), args.stdin)?.unwrap_or_else(|| body.into());
         if let Some(title) = args.title {
             map.insert("title".into(), title.into());
         }

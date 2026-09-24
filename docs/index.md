@@ -8,7 +8,7 @@ A local Markdown-first store for reusable notes, snippets, prompts, and temporar
 cargo install --path . --locked && bs completion install
 # Start a new shell to activate completion.
 bs init --store ~/bitshelf --editor code
-bs add notes --title 'Release checklist' --file checklist.md
+bs add notes/release-checklist --file checklist.md
 bs search 'release' --json
 bs open notes/release-checklist
 ```

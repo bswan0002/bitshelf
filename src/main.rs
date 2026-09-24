@@ -4,6 +4,7 @@ mod completion;
 mod config;
 mod context;
 mod editor;
+mod input;
 mod interactive;
 mod lifecycle;
 mod output;
@@ -16,11 +17,7 @@ use cli::{Bs, Commands, ShelfCommands};
 use config::{Config, ShelfConfig};
 use output::emit;
 use serde_json::json;
-use std::{
-    fs,
-    io::{IsTerminal, Read},
-    path::PathBuf,
-};
+use std::{fs, io::IsTerminal, path::PathBuf};
 use store::Store;
 
 #[derive(Debug)]
@@ -39,6 +36,12 @@ fn usage_check(condition: bool, message: &str) -> Result<()> {
 }
 fn main() {
     if let Err(err) = run(Bs::parse()) {
+        if err
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|e| e.kind() == std::io::ErrorKind::BrokenPipe)
+        {
+            return;
+        }
         eprintln!("error: {err:#}");
         std::process::exit(if err.downcast_ref::<UsageError>().is_some() {
             2
@@ -188,8 +191,8 @@ fn run(args: Bs) -> Result<()> {
             )?;
             if c.interactive {
                 interactive::require(json_output)?;
-                if c.shelf.is_none() {
-                    c.shelf = Some(interactive::select(
+                if c.id.is_none() {
+                    let shelf = interactive::select(
                         "Choose shelf",
                         &store
                             .shelves()?
@@ -197,48 +200,42 @@ fn run(args: Bs) -> Result<()> {
                             .filter(|s| !s.missing)
                             .map(|s| s.name)
                             .collect::<Vec<_>>(),
-                    )?);
-                }
-                if c.title.is_none() {
-                    c.title = Some(interactive::input("Title")?);
+                    )?;
+                    let name = interactive::input("Bit name (no .md extension)")?;
+                    c.id = Some(format!("{shelf}/{name}"));
                 }
                 if c.tags.is_none() {
                     c.tags = Some(interactive::input("Tags, comma-separated")?);
                 }
             }
             usage_check(
-                c.shelf.is_some() && c.title.is_some(),
-                "add requires SHELF and --title TEXT (or --interactive)",
+                c.id.is_some(),
+                "add requires ID (shelf/bit-name) or --interactive",
             )?;
-            let shelf = c.shelf.unwrap();
-            let title = c.title.unwrap();
-            let slug = c.slug.unwrap_or_else(|| bit::slug(&title));
-            let id = format!("{shelf}/{slug}");
+            let id = c.id.unwrap();
             let destination = store.bit_path(&id)?;
+            let shelf = id.split_once('/').unwrap().0;
             ensure!(
                 !destination.try_exists()?,
-                "bit {id} already exists; choose --slug ALTERNATIVE"
+                "bit {id} already exists; choose a different ID"
             );
-            let body = if let Some(file) = c.file {
-                fs::read_to_string(&file)
-                    .with_context(|| format!("cannot read {}", file.display()))?
-            } else if c.stdin {
-                let mut s = String::new();
-                std::io::stdin().read_to_string(&mut s)?;
-                s
-            } else {
-                String::new()
-            };
-            let cfg = store.settings(&shelf)?;
+            let body = input::body(c.file.as_deref(), c.stdin)?.unwrap_or_default();
+            let cfg = store.settings(shelf)?;
             let created_at = Utc::now();
-            let mut raw = bit::create(&title, c.tags.as_deref(), &body, &cfg, created_at)?;
+            let mut raw = bit::create(
+                c.title.as_deref(),
+                c.tags.as_deref(),
+                &body,
+                &cfg,
+                created_at,
+            )?;
             let mut draft = None;
             if c.interactive {
                 use std::io::Write;
                 let mut file = tempfile::Builder::new()
                     .prefix(".draft-")
                     .suffix(".md")
-                    .tempfile_in(store.bits_path(&shelf)?)?;
+                    .tempfile_in(store.bits_path(shelf)?)?;
                 file.write_all(raw.as_bytes())?;
                 let (_, p) = file.keep()?;
                 // Keep the draft on every editor/validation/finalization failure.
@@ -319,6 +316,7 @@ fn run(args: Bs) -> Result<()> {
             Ok(())
         }
         Commands::List(c) => {
+            output::check_listing(json_output, c.long, c.paths, c.null)?;
             let mut bits: Vec<_> = store
                 .bits(c.shelf.as_deref())?
                 .into_iter()
@@ -343,40 +341,41 @@ fn run(args: Bs) -> Result<()> {
             } else if c.reverse {
                 bits.reverse();
             }
-            let human = bits
-                .iter()
-                .map(|b| format!("{}\t{}", b.id, b.title))
-                .collect::<Vec<_>>()
-                .join("\n");
-            emit(&bits, json_output, human)
+            output::listing(&bits, json_output, c.long, c.paths, c.null)
         }
         Commands::Search(c) => {
+            output::check_listing(json_output, c.long, c.paths, c.null)?;
             let query = c.query.to_lowercase();
             let bits: Vec<_> = store
                 .bits(c.shelf.as_deref())?
                 .into_iter()
                 .filter(|b| {
-                    format!("{}\n{}\n{}", b.title, b.tags.join(" "), b.body)
-                        .to_lowercase()
-                        .contains(&query)
+                    format!(
+                        "{}\n{}\n{}\n{}",
+                        b.id,
+                        b.title.as_deref().unwrap_or(""),
+                        b.tags.join(" "),
+                        b.body
+                    )
+                    .to_lowercase()
+                    .contains(&query)
                 })
                 .collect();
-            let human = bits
-                .iter()
-                .map(|b| format!("{}\t{}", b.id, b.title))
-                .collect::<Vec<_>>()
-                .join("\n");
-            emit(&bits, json_output, human)
+            output::listing(&bits, json_output, c.long, c.paths, c.null)
         }
         Commands::Show(c) => {
             let path = store.bit_path(&c.id)?;
             let content =
                 fs::read_to_string(&path).with_context(|| format!("cannot read bit {}", c.id))?;
+            let content = if c.body {
+                bit::parse(&content)?.1
+            } else {
+                &content
+            };
             if json_output {
                 emit(&json!({"id":c.id,"path":path,"content":content}), true, "")
             } else {
-                print!("{content}");
-                Ok(())
+                output::write(content.as_bytes())
             }
         }
         Commands::Context(c) => {

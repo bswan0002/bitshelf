@@ -23,12 +23,12 @@ pub fn run(args: &Completion) -> Result<()> {
             .shell
             .as_deref()
             .context("script generation requires --shell SHELL")?;
-        print!(
-            "{}",
+        crate::output::write(
             Bs::completion_script(
-                usage::complete::Shell::from_name(shell).context("unsupported shell")?
+                usage::complete::Shell::from_name(shell).context("unsupported shell")?,
             )
-        );
+            .as_bytes(),
+        )?;
         return Ok(());
     };
     let detected = env::var("SHELL").ok().and_then(|s| {
@@ -48,11 +48,11 @@ pub fn run(args: &Completion) -> Result<()> {
     let configured_path = target(shell)?;
     let path = resolve_target(&configured_path)?;
     if path != configured_path {
-        println!(
+        crate::output::line(format!(
             "Shell config: {} -> {}",
             configured_path.display(),
             path.display()
-        );
+        ))?;
     }
     let before = read_target(&path)?;
     let mut after = plan(shell, before.as_deref(), action == "install")?;
@@ -64,7 +64,7 @@ pub fn run(args: &Completion) -> Result<()> {
         after = Some(String::new());
     }
     if before == after {
-        println!(
+        crate::output::line(format!(
             "{}: {}",
             if action == "install" {
                 "Already configured"
@@ -72,14 +72,17 @@ pub fn run(args: &Completion) -> Result<()> {
                 "No managed completion setup found"
             },
             path.display()
-        );
+        ))?;
         return Ok(());
     }
-    println!("Will {action} completion setup in {}", path.display());
+    crate::output::line(format!(
+        "Will {action} completion setup in {}",
+        path.display()
+    ))?;
     if action == "install" {
-        println!("{}", block(shell));
+        crate::output::line(block(shell))?;
     } else {
-        println!("Only bitshelf-managed completion setup will be removed.");
+        crate::output::line("Only bitshelf-managed completion setup will be removed.")?;
     }
     if args.dry_run {
         return Ok(());
@@ -114,14 +117,14 @@ pub fn run(args: &Completion) -> Result<()> {
         }
         None => fs::remove_file(&path)?,
     }
-    println!(
+    crate::output::line(format!(
         "Completion setup updated. {}",
         if action == "install" {
             "Start a new shell to activate it (the current shell is unchanged)."
         } else {
             "Start a new shell to unload it; manually installed or package-manager completions are unchanged."
         }
-    );
+    ))?;
     Ok(())
 }
 
