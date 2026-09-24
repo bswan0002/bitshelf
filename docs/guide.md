@@ -1,5 +1,7 @@
 # User guide
 
+> **Early development — do not use bitshelf yet.** It is not ready for use. Commands, configuration, and file formats may change without backward compatibility, and bugs may cause data loss. The instructions below are for development and testing with disposable data only.
+
 These are development docs for bitshelf 0.1.x, potentially ahead of a published release.
 
 ## Setup and storage

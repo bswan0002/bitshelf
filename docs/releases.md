@@ -1,6 +1,8 @@
 # Installation and releases
 
-## Source installation
+> **Early development — do not use bitshelf yet.** It is not ready for use. Commands, configuration, and file formats may change without backward compatibility, and bugs may cause data loss. The instructions below are for development and testing with disposable data only.
+
+## Source installation (development only)
 
 Install stable Rust using [rustup](https://rustup.rs), then run in this checkout:
 
@@ -12,7 +14,7 @@ The completion installer previews changes and asks for confirmation. Start a new
 
 Release publication is triggered by version tags. Homebrew updates require the repository variable and secret described in the maintainer checklist.
 
-## Release routes
+## Release routes (development only)
 
 For a release published to the configured personal tap:
 

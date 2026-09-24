@@ -1,5 +1,7 @@
 # JSON contract (0.1.x)
 
+> **Early development — do not use bitshelf yet.** It is not ready for use. Commands, configuration, and file formats may change without backward compatibility, and bugs may cause data loss. The instructions below are for development and testing with disposable data only.
+
 `--json` is global. For list/search, it conflicts with `--long`, `--paths`, and `--null`. Successful structured output is one document on stdout; diagnostics go to stderr. Arrays are used for collection results, including `[]`. Paths are absolute. Nullable fields are emitted as `null`, not omitted. Consumers should tolerate new fields.
 
 | Command | Result |

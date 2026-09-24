@@ -1,10 +1,12 @@
 # bitshelf
 
+> **Early development — do not use bitshelf yet.** It is not ready for use. Commands, configuration, and file formats may change without backward compatibility, and bugs may cause data loss. The instructions below are for development and testing with disposable data only.
+
 A local, Markdown-first store for notes, snippets, prompts, and handoffs. The executable is **`bs`**. Your store is an ordinary directory, not a database.
 
 **Prototype · 0.1.0.** No hosted service, background capture, or agent harness required.
 
-## Install from source
+## Install from source (development only)
 
 Install a current stable [Rust toolchain](https://rustup.rs), then:
 

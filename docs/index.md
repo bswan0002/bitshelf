@@ -1,5 +1,7 @@
 # bitshelf
 
+> **Early development — do not use bitshelf yet.** It is not ready for use. Commands, configuration, and file formats may change without backward compatibility, and bugs may cause data loss. The instructions below are for development and testing with disposable data only.
+
 **Development documentation · prototype 0.1.x.** This site tracks main and may describe unreleased work.
 
 A local Markdown-first store for reusable notes, snippets, prompts, and temporary handoffs. People and agents use the same files and the same `bs` executable.
