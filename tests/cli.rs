@@ -1188,3 +1188,96 @@ fn prune_during_editor_session_cannot_resurrect_a_bit() {
             .ends_with("recover me")
     );
 }
+
+#[test]
+fn namespaced_tag_rules_workflow() {
+    let f = Fixture::new();
+    let body = f.root.join("body.txt");
+    fs::write(&body, "body").unwrap();
+    let rules = r#"[tag_rules.project]
+required = true
+allowed = ["bitshelf", "switchboard"]
+"#;
+    fs::write(f.root.join("notes/bs.toml"), rules).unwrap();
+    let context = f.json(&["context", "notes", "--json"]);
+    assert_eq!(context["tag_rules"]["project"]["required"], true);
+    assert_eq!(
+        context["tag_rules"]["project"]["allowed"],
+        serde_json::json!(["bitshelf", "switchboard"])
+    );
+    assert!(
+        String::from_utf8(f.ok(&["context", "notes"]).stdout)
+            .unwrap()
+            .contains("tag_rules")
+    );
+    for tags in [
+        "rust",
+        "project:",
+        "project:Bitshelf",
+        "project:typo",
+        "project:bitshelf,project:typo",
+    ] {
+        let out = f.run(&[
+            "add",
+            "notes",
+            "--title",
+            "Rejected",
+            "--tags",
+            tags,
+            "--file",
+            body.to_str().unwrap(),
+        ]);
+        assert!(!out.status.success(), "{tags}");
+        assert!(!f.bit_path("notes/rejected").exists());
+    }
+    f.ok(&[
+        "add",
+        "notes",
+        "--title",
+        "Valid",
+        "--tags",
+        "project:bitshelf,project:switchboard,rust,kind:guide",
+        "--file",
+        body.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        f.json(&["list", "notes", "--tag", "project:bitshelf", "--json"])
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let before = fs::read(f.bit_path("notes/valid")).unwrap();
+    assert!(
+        !f.run(&["edit", "notes/valid", "--tags", "project:typo"])
+            .status
+            .success()
+    );
+    assert_eq!(fs::read(f.bit_path("notes/valid")).unwrap(), before);
+    f.ok(&["validate", "notes", "--json"]);
+    // Direct filesystem edits remain readable, but validation reports the rule violation.
+    f.write("notes/invalid", "---\ntags: [rust]\n---\nbody");
+    f.ok(&["show", "notes/invalid", "--json"]);
+    let out = f.run(&["validate", "notes", "--json"]);
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8(out.stdout)
+            .unwrap()
+            .contains("missing required tag namespace")
+    );
+    f.ok(&["edit", "notes/invalid", "--tags", "project:bitshelf"]);
+    f.ok(&["validate", "notes", "--json"]);
+    // Shelf updates preserve rules, and removing a value does not rewrite bits.
+    f.ok(&["shelf", "add", "notes", "--description", "Notes"]);
+    assert_eq!(
+        f.json(&["context", "notes", "--json"])["tag_rules"],
+        context["tag_rules"]
+    );
+    fs::write(
+        f.root.join("notes/bs.toml"),
+        rules.replace("\"bitshelf\", ", ""),
+    )
+    .unwrap();
+    assert!(!f.run(&["validate", "notes"]).status.success());
+    assert_eq!(fs::read(f.bit_path("notes/valid")).unwrap(), before);
+}

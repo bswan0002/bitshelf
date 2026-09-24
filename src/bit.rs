@@ -87,7 +87,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| id.split('/').next_back().unwrap())
         .to_string();
-    let tags = map
+    let tags: Vec<String> = map
         .get("tags")
         .and_then(Value::as_sequence)
         .map(|a| {
@@ -97,6 +97,40 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
                 .collect()
         })
         .unwrap_or_default();
+    // Avoid namespace diagnostics derived from malformed tag metadata.
+    let tags_well_formed = map.get("tags").is_none_or(|value| {
+        value
+            .as_sequence()
+            .is_some_and(|items| items.iter().all(|v| v.as_str().is_some()))
+    });
+    if tags_well_formed {
+        for (namespace, rule) in &cfg.tag_rules {
+            let prefix = format!("{namespace}:");
+            let values: Vec<&str> = tags
+                .iter()
+                .filter_map(|tag| tag.strip_prefix(&prefix))
+                .collect();
+            if rule.required && values.is_empty() {
+                errors.push(format!(
+                    "missing required tag namespace {namespace:?}; expected one of: {}",
+                    rule.allowed
+                        .iter()
+                        .map(|v| format!("{prefix}{v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
+            for value in values {
+                if !rule.allowed.iter().any(|allowed| allowed == value) {
+                    errors.push(format!(
+                        "disallowed tag {:?}; allowed values for {namespace:?}: {}",
+                        format!("{prefix}{value}"),
+                        rule.allowed.join(", ")
+                    ));
+                }
+            }
+        }
+    }
     let expires = map.get("expires").and_then(timestamp);
     Bit {
         id,
@@ -161,6 +195,36 @@ pub fn create(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn optional_and_required_tag_namespaces() {
+        let mut cfg: ShelfConfig =
+            toml::from_str("[tag_rules.project]\nallowed = ['bitshelf']").unwrap();
+        let check = |raw: &str, cfg: &ShelfConfig| {
+            inspect("notes/test".into(), "/test".into(), raw, cfg).errors
+        };
+        for raw in [
+            "body",
+            "---\ntags: []\n---\n",
+            "---\ntags: [rust, 'other:anything']\n---\n",
+        ] {
+            assert!(check(raw, &cfg).is_empty());
+        }
+        assert!(check("---\ntags: ['project:']\n---\n", &cfg)[0].contains("disallowed tag"));
+        cfg.tag_rules.get_mut("project").unwrap().required = true;
+        for raw in ["body", "---\ntags: []\n---\n"] {
+            assert!(check(raw, &cfg)[0].contains("missing required tag namespace"));
+        }
+        for raw in [
+            "---\ntags: project:bitshelf\n---\n",
+            "---\ntags: [4]\n---\n",
+        ] {
+            assert_eq!(
+                check(raw, &cfg),
+                ["invalid tags: expected a list of strings"]
+            );
+        }
+        assert!(check("---\ntags: ['project:bitshelf']\n---\n", &cfg).is_empty());
+    }
     #[test]
     fn controlled_clock_and_verbatim_body() {
         let now = DateTime::parse_from_rfc3339("2026-01-01T23:59:59Z")
