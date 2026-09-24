@@ -5,6 +5,7 @@ mod config;
 mod context;
 mod editor;
 mod interactive;
+mod lifecycle;
 mod output;
 mod prune;
 mod store;
@@ -225,7 +226,8 @@ fn run(args: Bs) -> Result<()> {
                 String::new()
             };
             let cfg = store.settings(&shelf);
-            let mut raw = bit::create(&title, c.tags.as_deref(), &body, &cfg, Utc::now())?;
+            let created_at = Utc::now();
+            let mut raw = bit::create(&title, c.tags.as_deref(), &body, &cfg, created_at)?;
             let mut draft = None;
             if c.interactive {
                 use std::io::Write;
@@ -247,6 +249,7 @@ fn run(args: Bs) -> Result<()> {
                 raw = fs::read_to_string(&p)?;
                 draft = Some(p);
             }
+            raw = lifecycle::new_bit(&raw, created_at)?;
             let checked = bit::inspect(id.clone(), destination, &raw, &cfg);
             ensure!(
                 checked.errors.is_empty(),
@@ -257,7 +260,10 @@ fn run(args: Bs) -> Result<()> {
                     .map(|p| format!("; draft preserved at {}", p.display()))
                     .unwrap_or_default()
             );
+            let mut state = lifecycle::State::load(&store, true)?;
+            state.remember(&id, &raw)?;
             let dest = store.write_bit(&id, &raw)?;
+            state.save(&store)?;
             if let Some(p) = draft
                 && let Err(e) = fs::remove_file(&p)
             {
@@ -265,12 +271,68 @@ fn run(args: Bs) -> Result<()> {
             }
             emit(&json!({"id":id,"path":dest}), json_output, id)
         }
+        Commands::Edit(c) => {
+            let result = lifecycle::edit(&store, c, json_output)?;
+            emit(&result, json_output, result["id"].as_str().unwrap_or(""))
+        }
+        Commands::Sync(c) => {
+            let results = lifecycle::sync(&store, c.shelf.as_deref(), c.dry_run)?;
+            let failed = results.iter().any(|r| r.error.is_some());
+            let human = results
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{}\t{}",
+                        r.id,
+                        r.error.as_deref().unwrap_or(if r.baselined {
+                            "baselined"
+                        } else if r.metadata_changed {
+                            "timestamps reconciled"
+                        } else {
+                            "unchanged"
+                        })
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let human = if c.dry_run {
+                format!("Dry run (no files changed)\n{human}")
+            } else {
+                human
+            };
+            emit(
+                &json!({"dry_run":c.dry_run,"results":results}),
+                json_output,
+                human,
+            )?;
+            ensure!(!failed, "some bits could not be synced; see per-bit errors");
+            Ok(())
+        }
         Commands::List(c) => {
-            let bits: Vec<_> = store
+            let mut bits: Vec<_> = store
                 .bits(c.shelf.as_deref())?
                 .into_iter()
                 .filter(|b| c.tag.as_ref().is_none_or(|t| b.tags.contains(t)))
                 .collect();
+            if let Some(field @ ("created" | "updated")) = c.sort.as_deref() {
+                let date = |b: &bit::Bit| {
+                    b.metadata
+                        .get(field)
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                };
+                bits.sort_by(|a, b| match (date(a), date(b)) {
+                    (Some(a_time), Some(b_time)) => {
+                        let order = a_time.cmp(&b_time).then_with(|| a.id.cmp(&b.id));
+                        if c.reverse { order.reverse() } else { order }
+                    }
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => a.id.cmp(&b.id),
+                });
+            } else if c.reverse {
+                bits.reverse();
+            }
             let human = bits
                 .iter()
                 .map(|b| format!("{}\t{}", b.id, b.title))

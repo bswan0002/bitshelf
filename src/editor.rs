@@ -9,6 +9,7 @@ use std::{
 pub enum Purpose {
     Open,
     Draft,
+    Edit,
 }
 
 /// Keep environment selection in one place for both setup and editor launching.
@@ -58,7 +59,7 @@ pub fn launch(config: &Config, paths: &[PathBuf], json: bool, purpose: Purpose) 
     );
     if !prepare(&mut editor, purpose) {
         eprintln!(
-            "Note: unrecognized editor command {:?}. For draft editing it must stay running until you finish; configure its wait flag if needed. Wrapper commands are not modified.",
+            "Note: unrecognized editor command {:?}. For draft/bit editing it must stay running until you finish; configure its wait flag if needed. Wrapper commands are not modified.",
             editor[0]
         );
     }
@@ -81,7 +82,7 @@ mod tests {
         values.iter().map(|s| s.to_string()).collect()
     }
     #[test]
-    fn known_gui_editors_wait_only_for_drafts() {
+    fn known_gui_editors_wait_for_add_and_edit_drafts() {
         for executable in [
             "code",
             "/Applications/bin/code",
@@ -95,6 +96,9 @@ mod tests {
             assert!(prepare(&mut command, Purpose::Open));
             assert_eq!(command, original);
             assert!(prepare(&mut command, Purpose::Draft));
+            let mut edit = original.clone();
+            assert!(prepare(&mut edit, Purpose::Edit));
+            assert_eq!(edit, command);
             assert_eq!(
                 command,
                 words(&[executable, "--wait", "--reuse-window", "--"])

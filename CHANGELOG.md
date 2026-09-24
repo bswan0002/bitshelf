@@ -6,6 +6,7 @@
 - TOML/XDG configuration, discoverable shelves, verbatim Markdown ingestion, frontmatter validation, plain-text search, and JSON results.
 - Configured/environment editors, Demand setup, draft authoring, and filtered multi-open selection.
 - Init honors VISUAL/EDITOR without prompting; recognized GUI editors automatically wait for draft editing only.
+- Automatic reserved `created`/`updated` timestamps, editor or body-input `bs edit`, hash-based `bs sync` for external edits, and chronological list sorting.
 - Patched Demand's duplicate completed-prompt rendering, covered by real-terminal regression tests.
 - Shelf guidance context and portable bitshelf agent skill.
 - Explicit opt-in expiration with safe dry-run cleanup.

@@ -102,7 +102,7 @@ impl Config {
         for (n, s) in &self.shelves {
             name(n)?;
             for r in &s.required {
-                if !["title", "tags", "created", "expires"].contains(&r.as_str()) {
+                if !["title", "tags", "created", "updated", "expires"].contains(&r.as_str()) {
                     bail!("shelf {n}: unsupported required field {r}");
                 }
             }

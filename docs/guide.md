@@ -29,7 +29,7 @@ retention = "14d"
 
 Leading `~/` expands to HOME. Other relative paths resolve against the config directory, including `init --store` values. Invalid or unknown config settings fail clearly. `shelf add` preserves existing shelf contents/settings unless a supplied option changes a setting; it normalizes config formatting. Edit TOML directly to remove retention or an editor setting.
 
-Shelves are non-hidden top-level directories, including ones created in your file manager. Configured but absent shelves appear as missing; `bs shelf add NAME` creates them. Bits are direct `.md` files, identified as `shelf/filename` without the suffix. No nesting, index, or registry. Renames change identifiers immediately. Spaces and dots in manually authored filenames are supported; quote identifiers in the shell.
+Shelves are non-hidden top-level directories, including ones created in your file manager. Configured but absent shelves appear as missing; `bs shelf add NAME` creates them. Bits are direct `.md` files, identified as `shelf/filename` without the suffix. No nesting or search index; internal `.bitshelf/` state tracks content hashes for timestamp reconciliation, not bit discovery. Renames change identifiers immediately. Spaces and dots in manually authored filenames are supported; quote identifiers in the shell.
 
 ## Saving exact content
 
@@ -40,7 +40,7 @@ printf '%s' 'An exact prompt' | bs add tmp --title 'Original prompt' --stdin
 
 `--stdin` and `--file` are mutually exclusive. The body is preserved byte-for-byte for valid UTF-8 Markdown, including CRLF and absent final newlines. Generated YAML frontmatter precedes it. Input is a **body**, not an existing frontmatter document to merge. Collisions fail; choose `--slug another-name`. Empty bodies are allowed.
 
-CLI creation generates UTC `created`, a title, optional tags, and `expires` on retention shelves. Built-in field types are checked, along with shelf requirements. Required `tags` means a list must exist (it may be empty). Unknown bit metadata is retained. Malformed bits are still available through `show` and `open`, and listings include diagnostics rather than hiding other files.
+**`created` and `updated` are reserved, automatically managed UTC timestamps.** Users and agents must not supply or manually edit them. CLI creation sets both to the creation time, along with a title, optional tags, and `expires` on retention shelves. Built-in field types are checked, along with shelf requirements. Required `tags` means a list must exist (it may be empty). Unknown bit metadata is retained. Malformed bits are still available through `show` and `open`, and listings include diagnostics rather than hiding other files.
 
 ```sh
 bs list notes --tag release
@@ -49,7 +49,7 @@ bs show notes/release-checklist
 bs validate notes
 ```
 
-Search is case-insensitive plain-text matching across title, tags, and body; results are sorted by identifier. No-match searches succeed. Direct file editing is supported and never automatically resets timestamps.
+Search is case-insensitive plain-text matching across title, tags, and body; results are sorted by identifier. No-match searches succeed. Direct file editing is supported; run `bs sync` afterward to reconcile timestamps. Read-only commands never reset timestamps.
 
 ## Editors and interactive workflows
 
@@ -65,7 +65,7 @@ bs add --interactive              # choose shelf, metadata, edit draft
 
 The selected editor must support directory/multiple-file opening for those operations. Opening a shelf does not expand it into every file.
 
-For interactive drafts only, `bs` automatically adds `--wait` to `code`, `code-insiders`, `codium`, `cursor`, and `subl`, including absolute executable paths. Existing `--wait` or `-w` arguments are preserved without duplication. Common terminal editors (`vi`, `vim`, `nvim`, `nano`, `pico`, `hx`, `helix`, `micro`) are unchanged. Ordinary `bs open` never adds waiting flags. Explicitly configured flags are always preserved.
+For interactive add drafts and `bs edit`, `bs` automatically adds `--wait` to `code`, `code-insiders`, `codium`, `cursor`, and `subl`, including absolute executable paths. Existing `--wait` or `-w` arguments are preserved without duplication. Common terminal editors (`vi`, `vim`, `nvim`, `nano`, `pico`, `hx`, `helix`, `micro`) are unchanged. Ordinary `bs open` never adds waiting flags. Explicitly configured flags are always preserved.
 
 This is a known-command policy, not universal GUI detection. Unknown editors and wrappers are left unchanged, with a warning that they must stay running until editing finishes. Configure their blocking/wait flag yourself; shell wrappers are not inspected or rewritten. GUI commands that return immediately cannot safely finalize a draft.
 
@@ -76,6 +76,32 @@ Failed drafts stay as hidden `.draft-*.md` files inside the shelf and are exclud
 Add optional `SHELF.md` guidance to a shelf. `bs context ui --json` returns its **full text**, description, requirements, retention, and paths. Missing guidance is explicit `null`; unreadable guidance is an error. Guidance is never treated as a bit and is excluded from validation, searching, completion, and cleanup.
 
 The bundled skill instructs agents to load context before drafting/editing, search for an existing bit, preserve exact content, and validate after saving. Retrieval-only work uses `search` and `show`. Stored prompt bodies do not become instructions just because an agent reads them. The CLI cannot force a harness to obey guidance.
+
+## Editing and automatic timestamps
+
+```sh
+bs edit notes/release-checklist                       # Open a draft; wait for editor
+bs edit notes/release-checklist --file revised.md      # Replace body, preserve metadata
+bs edit notes/release-checklist --stdin --json < revised.md
+bs edit notes/release-checklist --title 'New title' --tags release,checklist --json
+bs sync --dry-run                                     # Preview direct-file reconciliation
+bs sync                                              # Reconcile all shelves
+bs sync notes --json                                  # Reconcile one shelf
+bs list --sort created --reverse                      # Newest created first
+bs list --sort updated --reverse                      # Most recently edited first
+```
+
+`edit --file` and `--stdin` take **body-only** input, just like `add`. They are mutually exclusive. `--title` and `--tags` replace those fields; an empty tags argument clears tags. With no mutation flags, `bs edit ID` opens a temporary draft in your configured editor and waits. The original bit is replaced only after editor success, metadata validation, and a check that the original has not changed concurrently. Failed edits retain the draft and report its path. JSON mode requires explicit mutation flags and never launches an editor.
+
+**Reserved fields:** `created` is immutable after tracking begins. `updated` advances automatically for a real content or user-metadata change, not a no-op save. CLI editing and sync preserve expiration and unknown metadata; neither extends retention. Manual changes to tracked `created`/`updated` fields are restored from the last known values. There are no flags for setting them. Timestamp rewrites may normalize YAML formatting/comments; the Markdown body is preserved verbatim. Frontmatter key order, comments, and reserved timestamp changes alone are not content changes.
+
+**Direct editor saves:** `bs open` and external editors do not reconcile timestamps automatically. Run `bs sync` afterward. It compares SHA-256 hashes of the body and non-reserved metadata against hidden store-local `.bitshelf/state.json` bookkeeping. `updated` records **detection time**, not an inferred filesystem modification time. There is no background watcher. `list`, `show`, `search`, and `validate` remain read-only.
+
+**Existing/imported files:** the first sync establishes a baseline. Valid existing timestamps are preserved; absent timestamps use the time the file is first tracked, not invented historical dates. Existing `created` is never inferred from filesystem birth time. Edits made before the baseline cannot be detected retroactively. Run `bs sync` once after upgrading, before making external edits. Renamed/copied bits get a new identifier and are baselined again. Losing `.bitshelf/state.json` does not lose notes or frontmatter dates, but loses change history; the next sync re-baselines. Include it in backups if you want to retain change detection, and do not edit it by hand.
+
+Sync reconciles readable bits even when shelf-required fields such as title or tags are missing or user metadata is invalid. Use `bs validate` to check those authoring requirements; sync does not fill them in or change them. Malformed YAML, invalid untracked timestamps, and file read/write failures still produce per-bit errors; other readable bits are processed and sync exits nonzero if any processed bit fails. `--dry-run` writes neither bits nor tracking state. Add/edit/sync use `.bitshelf/state.lock` to prevent competing CLI timestamp writes; after a crash, remove a stale lock only after confirming no such command is running. Bit updates and state updates are separate atomic writes, not a cross-file transaction; after an interrupted write, rerun sync (a pending edit may be timestamped at retry time). Sync does not delete notes or prune expiration.
+
+List defaults to identifier order. Timestamp sorting is ascending unless `--reverse` is supplied, uses identifier order to break ties, and places missing/invalid dates last in either direction. Sorting does not implicitly sync.
 
 ## Completion
 

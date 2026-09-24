@@ -19,6 +19,8 @@ pub enum Commands {
     Init(Init),
     Shelf(Shelf),
     Add(Add),
+    Edit(Edit),
+    Sync(Sync),
     List(List),
     Search(Search),
     Show(Show),
@@ -81,9 +83,39 @@ pub struct Add {
     #[usage(long)]
     pub interactive: bool,
 }
-/// List bits in deterministic identifier order
+/// Edit a bit via your editor, or replace its body/metadata noninteractively
+#[derive(Args)]
+pub struct Edit {
+    #[usage(complete = complete_edit)]
+    pub id: String,
+    /// Replace the body from a file (not frontmatter)
+    #[usage(long)]
+    pub file: Option<PathBuf>,
+    #[usage(long)]
+    pub stdin: bool,
+    #[usage(long)]
+    pub title: Option<String>,
+    /// Replace tags with a comma-separated list
+    #[usage(long)]
+    pub tags: Option<String>,
+}
+/// Reconcile timestamps after direct filesystem edits; first run establishes a baseline
+#[derive(Args)]
+pub struct Sync {
+    #[usage(complete = complete_sync)]
+    pub shelf: Option<String>,
+    #[usage(long)]
+    pub dry_run: bool,
+}
+/// List bits, optionally sorted by creation or edit time
 #[derive(Args)]
 pub struct List {
+    /// Sort ascending by identifier (default), creation time or last edit
+    #[usage(long, choices("id", "created", "updated"))]
+    pub sort: Option<String>,
+    /// Reverse the selected order (newest first for timestamps)
+    #[usage(long)]
+    pub reverse: bool,
     #[usage(complete = complete_list)]
     pub shelf: Option<String>,
     #[usage(long)]
@@ -211,3 +243,6 @@ completer!(complete_open, Open, true, true);
 completer!(complete_context, Context, false, true);
 completer!(complete_filter, Filter, false, true);
 completer!(complete_prune, Prune, false, true);
+
+completer!(complete_edit, Edit, true, false);
+completer!(complete_sync, Sync, false, true);

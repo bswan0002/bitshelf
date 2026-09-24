@@ -68,7 +68,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
             Some("tags") => value
                 .as_sequence()
                 .is_some_and(|a| a.iter().all(|v| v.as_str().is_some())),
-            Some("created" | "expires") => timestamp(value).is_some(),
+            Some("created" | "updated" | "expires") => timestamp(value).is_some(),
             _ => true,
         };
         if !valid {
@@ -132,6 +132,7 @@ pub fn create(
         now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
             .into(),
     );
+    map.insert("updated".into(), map["created"].clone());
     if let Some(tags) = tags {
         map.insert(
             "tags".into(),

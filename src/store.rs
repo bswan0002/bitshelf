@@ -117,6 +117,13 @@ impl Store {
         Ok(p)
     }
     pub fn bits(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
+        self.read_bits(shelf, true)
+    }
+    /// Sync owns its error reporting and does not enforce authoring requirements.
+    pub fn bits_for_sync(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
+        self.read_bits(shelf, false)
+    }
+    fn read_bits(&self, shelf: Option<&str>, report_metadata_errors: bool) -> Result<Vec<Bit>> {
         let shelves = if let Some(s) = shelf {
             self.shelf_path(s, true)?;
             vec![s.to_owned()]
@@ -158,8 +165,10 @@ impl Store {
                 match fs::read_to_string(&p) {
                     Ok(raw) => {
                         let bit = bit::inspect(id, p, &raw, &self.settings(&s));
-                        for err in &bit.errors {
-                            eprintln!("warning: {}: {err}", bit.id);
+                        if report_metadata_errors {
+                            for err in &bit.errors {
+                                eprintln!("warning: {}: {err}", bit.id);
+                            }
                         }
                         bits.push(bit);
                     }
