@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.1.0 — Unreleased prototype
+
+- Rust `bs` CLI with Usage declarations, generated help/reference/man page, and self-contained dynamic completion.
+- TOML/XDG configuration, discoverable shelves, verbatim Markdown ingestion, frontmatter validation, plain-text search, and JSON results.
+- Configured/environment editors, Demand setup, draft authoring, and filtered multi-open selection.
+- Init honors VISUAL/EDITOR without prompting; recognized GUI editors automatically wait for draft editing only.
+- Patched Demand's duplicate completed-prompt rendering, covered by real-terminal regression tests.
+- Shelf guidance context and portable bitshelf agent skill.
+- Explicit opt-in expiration with safe dry-run cleanup.
+- Temporary-store contract tests, VitePress docs, CI, and release/Homebrew automation scaffolding.

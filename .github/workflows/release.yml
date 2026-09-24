@@ -1,0 +1,106 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  draft:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify tag and create draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os, tomllib
+          with open('Cargo.toml', 'rb') as f:
+              version = tomllib.load(f)['package']['version']
+          assert os.environ['GITHUB_REF_NAME'] == 'v' + version, 'Tag must match Cargo.toml'
+          PY
+          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes 'Prototype release. macOS archives are unsigned and unnotarized; see the installation guide.'
+  build:
+    needs: draft
+    strategy:
+      matrix:
+        include:
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - run: cargo install usage-cli --version 6.11.1 --locked
+      - run: bash scripts/generate-docs.sh
+        env:
+          BS: target/${{ matrix.target }}/release/bs
+      - name: Package archive
+        env:
+          TARGET: ${{ matrix.target }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p staging
+          cp "target/$TARGET/release/bs" dist/bs.1 LICENSE README.md staging/
+          cp -R dist/completions skills staging/
+          tar -czf "bitshelf-$GITHUB_REF_NAME-$TARGET.tar.gz" -C staging .
+          gh release upload "$GITHUB_REF_NAME" "bitshelf-$GITHUB_REF_NAME-$TARGET.tar.gz" --clobber
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checksums and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir archives
+          gh release download "$GITHUB_REF_NAME" --pattern '*.tar.gz' --dir archives
+          (cd archives && sha256sum *.tar.gz > SHA256SUMS)
+          gh release upload "$GITHUB_REF_NAME" archives/SHA256SUMS --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false
+  tap:
+    needs: publish
+    if: ${{ vars.HOMEBREW_TAP != '' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate formula
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS
+          python3 scripts/homebrew-formula.py "$GITHUB_REF_NAME" SHA256SUMS > /tmp/bitshelf.rb
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.HOMEBREW_TAP }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: Update configured personal tap
+        working-directory: tap
+        run: |
+          mkdir -p Formula
+          cp /tmp/bitshelf.rb Formula/bitshelf.rb
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Formula/bitshelf.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "bitshelf $GITHUB_REF_NAME"
+            git push
+          fi
