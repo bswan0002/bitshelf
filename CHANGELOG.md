@@ -19,3 +19,4 @@
 - Shelf guidance context and portable bitshelf agent skill, including a recipe for ordinary shelf-local helpers referenced from guidance.
 - Explicit opt-in expiration with safe dry-run cleanup.
 - Temporary-store contract tests, VitePress docs, CI, and release/Homebrew automation scaffolding.
+- Documentation reorganized around motivation, the core loop, outcome-oriented recipes (design docs, handoffs, reusable code, archive, expiring shelves), and an agents guide, with the former user guide split into reference pages; maintainer release steps moved to `RELEASING.md`.
