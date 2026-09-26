@@ -71,11 +71,16 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         !(args.file.is_some() && args.stdin),
         "--file and --stdin are mutually exclusive",
     )?;
-    let interactive =
-        args.file.is_none() && !args.stdin && args.title.is_none() && args.tags.is_none();
+    let interactive = args.file.is_none()
+        && !args.stdin
+        && args.title.is_none()
+        && args.tags.is_none()
+        && args.set.is_empty()
+        && args.set_json.is_empty()
+        && args.unset.is_empty();
     crate::usage_check(
         !(interactive && json),
-        "bs edit --json requires --file, --stdin, --title or --tags (no editor)",
+        "bs edit --json requires --file, --stdin, --title, --tags, --set, --set-json or --unset (no editor)",
     )?;
     let path = store.bit_path(&args.id)?;
     let original = fs::read_to_string(&path)?;
@@ -107,20 +112,14 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         let (mut map, body) = bit::parse(&original)?;
         let body =
             crate::input::body(args.file.as_deref(), args.stdin)?.unwrap_or_else(|| body.into());
-        if let Some(title) = args.title {
-            map.insert("title".into(), title.into());
+        crate::metadata::Mutation {
+            title: args.title,
+            tags: args.tags,
+            set: args.set,
+            set_json: args.set_json,
+            unset: args.unset,
         }
-        if let Some(tags) = args.tags {
-            map.insert(
-                "tags".into(),
-                serde_json::to_value(
-                    tags.split(',')
-                        .map(str::trim)
-                        .filter(|s| !s.is_empty())
-                        .collect::<Vec<_>>(),
-                )?,
-            );
-        }
+        .apply(&mut map)?;
         render(&map, &body)?
     };
     let operation = (|| -> Result<serde_json::Value> {

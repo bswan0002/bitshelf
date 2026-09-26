@@ -28,13 +28,21 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         fs::read_to_string(&source).with_context(|| format!("cannot read bit {}", args.id))?;
     let now = Utc::now();
     let raw = before.clone();
-    let after = if args.set.is_empty() {
+    let after = if args.set.is_empty()
+        && args.set_json.is_empty()
+        && args.unset.is_empty()
+        && args.title.is_none()
+        && args.tags.is_none()
+    {
         raw
     } else {
         let (mut metadata, body) = bit::parse(&raw)?;
         crate::metadata::Mutation {
-            set: args.set.clone(),
-            ..Default::default()
+            title: args.title,
+            tags: args.tags,
+            set: args.set,
+            set_json: args.set_json,
+            unset: args.unset,
         }
         .apply(&mut metadata)?;
         lifecycle::render(&metadata, body)?
@@ -116,6 +124,10 @@ mod tests {
                 Move {
                     id: "notes/a".into(),
                     destination: "notes/b".into(),
+                    title: None,
+                    tags: None,
+                    set_json: vec![],
+                    unset: vec![],
                     set: vec![],
                     dry_run: false,
                 },

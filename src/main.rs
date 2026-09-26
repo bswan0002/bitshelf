@@ -240,6 +240,16 @@ fn run(args: Bs) -> Result<()> {
                 &cfg,
                 created_at,
             )?;
+            let (mut metadata, body) = bit::parse(&raw)?;
+            metadata::Mutation {
+                title: c.title,
+                tags: c.tags,
+                set: c.set,
+                set_json: c.set_json,
+                unset: c.unset,
+            }
+            .apply(&mut metadata)?;
+            raw = lifecycle::render(&metadata, body)?;
             let default_expiry = bit::parse(&raw)?.0.get("expires").cloned();
             let mut draft = None;
             if c.interactive {

@@ -1903,3 +1903,87 @@ fn discovered_ids_roundtrip_and_unsupported_entries_are_never_ids() {
         f.ok(&["show", "notes/case"]);
     }
 }
+
+#[test]
+fn shared_metadata_mutations_are_atomic_typed_and_destination_validated() {
+    let f = Fixture::new();
+    for (shelf, project) in [("source", "a"), ("destination", "b")] {
+        f.ok(&["shelf", "add", shelf]);
+        fs::write(
+            f.root.join(shelf).join("bs.toml"),
+            format!("[tag_rules.project]\nrequired=true\nallowed=['{project}']\n"),
+        )
+        .unwrap();
+    }
+    f.ok(&[
+        "add",
+        "source/item",
+        "--tags",
+        "project:a",
+        "--set-json",
+        r#"custom={"nested":[1,true,null,{"x":"y"}]}"#,
+        "--set",
+        "literal=true",
+        "--set",
+        "expires=2099-01-01T00:00:00Z",
+    ]);
+    let before = fs::read(f.bit_path("source/item")).unwrap();
+    f.ok(&[
+        "move",
+        "source/item",
+        "destination",
+        "--tags",
+        "project:b",
+        "--dry-run",
+    ]);
+    assert_eq!(fs::read(f.bit_path("source/item")).unwrap(), before);
+    assert!(!f.bit_path("destination/item").exists());
+    f.ok(&[
+        "move",
+        "source/item",
+        "destination",
+        "--tags",
+        "project:b",
+        "--unset",
+        "literal",
+    ]);
+    let metadata = &f.json(&["list", "destination", "--json"])[0]["metadata"];
+    assert_eq!(metadata["tags"], serde_json::json!(["project:b"]));
+    assert_eq!(
+        metadata["custom"],
+        serde_json::json!({"nested":[1,true,null,{"x":"y"}]})
+    );
+    assert!(metadata.get("literal").is_none());
+    assert_eq!(metadata["expires"], "2099-01-01T00:00:00Z");
+    let before = fs::read(f.bit_path("destination/item")).unwrap();
+    for flags in [
+        vec!["--tags", ""],
+        vec!["--unset", "tags"],
+        vec!["--title", "x", "--unset", "title"],
+        vec!["--set", "x=1", "--set-json", "x=2"],
+        vec!["--unset", "created"],
+        vec!["--set-json", "custom={broken"],
+        vec!["--title", ""],
+    ] {
+        let mut args = vec!["edit", "destination/item"];
+        args.extend(flags);
+        assert!(!f.run(&args).status.success());
+        assert_eq!(fs::read(f.bit_path("destination/item")).unwrap(), before);
+    }
+    assert_eq!(
+        f.json(&["edit", "destination/item", "--unset", "absent", "--json"])["changed"],
+        false
+    );
+    assert_eq!(fs::read(f.bit_path("destination/item")).unwrap(), before);
+    f.ok(&["add", "notes/empty", "--tags", ""]);
+    assert_eq!(
+        f.json(&["list", "notes", "--json"])[0]["metadata"]["tags"],
+        serde_json::json!([])
+    );
+    f.ok(&["edit", "notes/empty", "--unset", "tags"]);
+    assert!(
+        f.json(&["list", "notes", "--json"])[0]["metadata"]
+            .get("tags")
+            .is_none()
+    );
+}

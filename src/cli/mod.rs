@@ -70,6 +70,16 @@ pub struct ShelfAdd {
 /// Save a new bit, preserving the supplied body verbatim
 #[derive(Args)]
 pub struct Add {
+    /// Set a literal string KEY=VALUE (repeatable)
+    #[usage(long)]
+    pub set: Vec<String>,
+    /// Set a typed JSON value KEY=JSON (repeatable)
+    #[usage(long)]
+    pub set_json: Vec<String>,
+    /// Remove a metadata field (repeatable)
+    #[usage(long)]
+    pub unset: Vec<String>,
+
     #[usage(complete = complete_add)]
     /// Identifier: shelf/bit-name (no .md extension)
     pub id: Option<String>,
@@ -89,6 +99,16 @@ pub struct Add {
 /// Edit a bit via your editor, or replace its body/metadata noninteractively
 #[derive(Args)]
 pub struct Edit {
+    /// Set a literal string KEY=VALUE (repeatable)
+    #[usage(long)]
+    pub set: Vec<String>,
+    /// Set a typed JSON value KEY=JSON (repeatable)
+    #[usage(long)]
+    pub set_json: Vec<String>,
+    /// Remove a metadata field (repeatable)
+    #[usage(long)]
+    pub unset: Vec<String>,
+
     #[usage(complete = complete_edit)]
     pub id: String,
     /// Read a body from a file, or - for stdin
@@ -290,9 +310,20 @@ pub struct Move {
     #[usage(complete = complete_move)]
     pub id: String,
     pub destination: String,
-    /// Set a frontmatter string: KEY=VALUE (repeatable; timestamps reserved)
+    #[usage(long)]
+    pub title: Option<String>,
+    /// Replace tags with a comma-separated list
+    #[usage(long)]
+    pub tags: Option<String>,
+    /// Set a literal string KEY=VALUE (repeatable)
     #[usage(long)]
     pub set: Vec<String>,
+    /// Set a typed JSON value KEY=JSON (repeatable)
+    #[usage(long)]
+    pub set_json: Vec<String>,
+    /// Remove a metadata field (repeatable)
+    #[usage(long)]
+    pub unset: Vec<String>,
     /// Validate and preview without changing files
     #[usage(long)]
     pub dry_run: bool,
