@@ -13,9 +13,12 @@ def capture(*args):
     return subprocess.check_output(args, text=True).strip()
 
 
+sysroot = Path(capture('rustc', '--print', 'sysroot'))
 info = {
     'target': sys.argv[1],
+    'rust_runtime_notices_sha256': hashlib.sha256((sysroot / 'share/doc/rust/COPYRIGHT-library.html').read_bytes()).hexdigest(),
     'source_commit': capture('git', 'rev-parse', 'HEAD'),
+    'source_dirty': bool(capture('git', 'status', '--porcelain')),
     'rustc': capture('rustc', '--version', '--verbose'),
     'cargo': capture('cargo', '--version'),
     'usage': capture('usage', '--version'),

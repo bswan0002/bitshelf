@@ -23,3 +23,8 @@ vendor/demand/LICENSE and the generated artifact. See vendor/README.md for the
 modification. The bitshelf project LICENSE remains separate from third-party
 attributions. Archives and Homebrew package share directories carry both the
 notices and machine-readable inventory.
+
+The archive also carries runtime-notices/COPYRIGHT-library.html and its license
+texts from the pinned Rust toolchain. BUILD-INFO.json hashes that runtime notice
+file separately; it covers standard-library/runtime code outside Cargo's package
+graph. Package smoke tests check its presence and hash.

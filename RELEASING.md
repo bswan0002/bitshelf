@@ -55,3 +55,24 @@ Source builds are the fallback for blocked browser downloads. Action SHAs are
 pinned, build jobs are read-only, and publication requires the release environment.
 Restrict any tap token to contents-write on that one tap repository. Follow-up
 signing/attestation work is recorded in the policy and bs-decisions shelf.
+
+## Package checks before publication
+
+Install the pinned Rust toolchain with its `rust-docs` component (the archive
+includes Rust runtime copyright/license notices), Python 3.12 and Usage 6.11.1.
+Build with `MACOSX_DEPLOYMENT_TARGET=15.0` on macOS. Generate docs with
+`BS=target/<target>/release/bs bash scripts/generate-docs.sh`. From a clean checkout:
+
+```sh
+python3.12 scripts/package.py --tag v0.1.0 --target <target> --binary target/<target>/release/bs
+python3.12 scripts/smoke-package.py dist/archives/bitshelf-v0.1.0-<target>.tar.gz --tag v0.1.0 --target <target>
+```
+
+Production formula generation requires the real checksums for all three targets.
+For local testing only, `homebrew-formula.py --base-url file://<absolute-directory>
+--local-test` accepts a partial real artifact set and fails on unavailable
+platforms. `test-homebrew.py <formula.rb>` creates and removes a temporary local
+tap; it refuses to interfere with an existing bitshelf keg. It exercises install,
+test, a formula-revision upgrade, retest and uninstall. See
+[verification](docs/verification.md) for actual local evidence and remaining
+native-platform gates.

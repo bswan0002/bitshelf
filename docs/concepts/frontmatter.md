@@ -8,6 +8,6 @@ Duplicate mapping keys, non-string keys, explicit YAML tags, merge keys (`<<`), 
 
 Every accepted value must survive JSON inspection, rendering/reparse, edit, move and semantic comparison without type/value loss. Invalid metadata has diagnostics, never a success-shaped null substitution; raw `show` remains available for repair. Semantic comparison ignores mapping order, comments and the two command-owned timestamp fields. It includes all other supported metadata and exact body bytes.
 
-The fixture corpus in `tests/fixtures/frontmatter` is normative. Runtime enforcement and parser replacement are tracked separately from this contract.
+The fixture corpus in `tests/fixtures/frontmatter` is normative. The parser, renderer and mutation regressions execute this corpus.
 
 Implementation uses serde-saphyr 1.3.0 (MIT OR Apache-2.0) and its granit-parser 1.3.0 scanner. Both are pinned in Cargo.lock; the upstream project has current releases and resource-budgeted alias expansion. See [upstream documentation](https://docs.rs/serde-saphyr/1.3.0/serde_saphyr/). The scanner rejects explicit tags and integer overflow; a recursive Serde visitor rejects non-string keys, duplicates, merges and non-finite values. Serialization may quote timestamp strings; their string values and body bytes remain unchanged. Run `cargo test metadata::tests::frontmatter_corpus` when updating either dependency.

@@ -25,6 +25,8 @@ jobs:
         with:
           python-version: '3.12.9'
       - run: python3 -B scripts/test_release.py
+      - run: python3 -B scripts/test_formula.py
+      - run: python3 scripts/check-workflows.py
       - run: python3 scripts/notices.py --check
   docs:
     runs-on: ubuntu-22.04
