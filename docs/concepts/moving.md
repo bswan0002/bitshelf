@@ -68,3 +68,9 @@ This runs only when you explicitly invoke `bs ticket-list`. Treat configured exe
 This is explicit command execution, not a hook or plugin lifecycle. A helper may call built-in bs commands; avoid configuring recursive helper invocations.
 
 See [Archive without deleting](../recipes/archive.md) for the archive alias in context.
+
+## References and auxiliary files
+
+Moving changes the path-derived ID; the old ID stops resolving. Bodies are byte-preserved, so links to the old ID/path and relative links inside the moved body may break. Attachments, scripts, images and other auxiliary files are not moved or rewritten. Review such references yourself. Only the final destination candidate must satisfy destination metadata rules; publication never overwrites another file.
+
+Moving into a retention-enabled shelf does not add an expiration. A missing expires remains conservatively unprunable; an already-expired explicit expires becomes eligible immediately. Edits do not extend expiration. Permanent shelves are never pruned, even with past expiration dates.

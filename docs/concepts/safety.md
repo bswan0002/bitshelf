@@ -51,3 +51,7 @@ If `.bitshelf/state.json` is lost, notes and frontmatter dates are intact; only 
 
 - Saving shelf configuration normalizes TOML formatting and comments.
 - `bs edit`, `bs move`, and `bs sync` may normalize YAML frontmatter formatting and comments. Bodies are never changed.
+
+## Filesystem boundary
+
+bs targets a trusted local filesystem. It refuses managed symlinks and checks bytes again before replacing/removing a file. These are best-effort conflict checks against normal external editors, not atomic compare-and-swap against hostile concurrent path replacement. Network/cloud synchronization is outside the writer-lock guarantee. Atomic publication avoids half-written files; power-loss durability additionally requires syncing file data and parent directories. Move must establish destination durability before source unlink; failures can leave both copies for inspection. There is no multi-file transaction or automatic link/attachment repair.
