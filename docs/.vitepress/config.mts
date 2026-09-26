@@ -4,7 +4,24 @@ export default defineConfig({
   title: 'bitshelf',
   description: 'A shared shelf for work worth keeping, used by people and agents',
   base: '/',
+  cleanUrls: true,
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['meta', { name: 'theme-color', content: '#f2ece0', media: '(prefers-color-scheme: light)' }],
+    ['meta', { name: 'theme-color', content: '#15130f', media: '(prefers-color-scheme: dark)' }],
+  ],
+  markdown: {
+    theme: { light: 'gruvbox-light-medium', dark: 'gruvbox-dark-medium' },
+  },
   themeConfig: {
+    logo: { src: '/logo.svg', alt: '' },
+    search: { provider: 'local' },
+    outline: { level: [2, 3], label: 'On this page' },
+    docFooter: { prev: 'Previous', next: 'Next' },
+    footer: {
+      message: 'Plain files on your own machine. Released under the MIT License.',
+      copyright: '© 2026 Ben Swanson',
+    },
     nav: [
       { text: 'Get started', link: '/start' },
       { text: 'Recipes', link: '/recipes/design-docs' },
