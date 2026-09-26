@@ -1,29 +1,42 @@
-name: Release
+name: Release candidate
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag matching Cargo and changelog
+        required: true
+      publish:
+        description: Publish verified artifacts (requires release environment approval)
+        type: boolean
+        default: false
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag }}
   cancel-in-progress: false
 jobs:
-  draft:
+  preflight:
     runs-on: ubuntu-22.04
+    outputs:
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Verify tag and create draft
+      - id: metadata
         env:
+          RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 scripts/release.py validate --tag "$GITHUB_REF_NAME" --notes-out release-notes.md
-          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes-file release-notes.md
-
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          python3 scripts/release.py preflight --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > release-info.json
+          python3 -c 'import json,os; v=json.load(open("release-info.json")); open(os.environ["GITHUB_OUTPUT"],"a").write("prerelease="+str(v["prerelease"]).lower()+"\n")'
   build:
-    needs: draft
+    needs: preflight
     strategy:
       matrix:
         include:
@@ -36,67 +49,82 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
+      - run: python3 -B scripts/test_release.py
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - run: cargo install usage-cli --version 6.11.1 --locked
       - run: bash scripts/generate-docs.sh
         env:
           BS: target/${{ matrix.target }}/release/bs
-      - name: Package archive
+      - name: Package and validate
         env:
           TARGET: ${{ matrix.target }}
-          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          mkdir -p staging
+          python3 scripts/release.py validate --tag "$RELEASE_TAG" --binary "target/$TARGET/release/bs"
+          mkdir -p staging archives
           cp "target/$TARGET/release/bs" dist/bs.1 LICENSE README.md staging/
           cp -R dist/completions skills staging/
-          tar -czf "bitshelf-$GITHUB_REF_NAME-$TARGET.tar.gz" -C staging .
-          gh release upload "$GITHUB_REF_NAME" "bitshelf-$GITHUB_REF_NAME-$TARGET.tar.gz" --clobber
-  publish:
+          tar -czf "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" -C staging .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target }}
+          path: archives/*.tar.gz
+          if-no-files-found: error
+  verify:
     needs: build
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Checksums and publish
-        env:
-          GH_TOKEN: ${{ github.token }}
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: archives
+          merge-multiple: true
+      - env:
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          mkdir archives
-          gh release download "$GITHUB_REF_NAME" --pattern '*.tar.gz' --dir archives
           (cd archives && sha256sum *.tar.gz > SHA256SUMS)
-          gh release upload "$GITHUB_REF_NAME" archives/SHA256SUMS --clobber
-          gh release edit "$GITHUB_REF_NAME" --draft=false
-  tap:
-    needs: publish
-    if: ${{ vars.HOMEBREW_TAP != '' }}
+          python3 scripts/release.py verify-artifacts --tag "$RELEASE_TAG" --directory archives
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release
+          path: archives/
+          if-no-files-found: error
+  publish:
+    if: ${{ inputs.publish }}
+    needs: [preflight, verify]
     runs-on: ubuntu-22.04
+    environment: release
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Generate formula
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release download "$GITHUB_REF_NAME" --pattern SHA256SUMS
-          python3 scripts/homebrew-formula.py "$GITHUB_REF_NAME" SHA256SUMS > /tmp/bitshelf.rb
-      - uses: actions/checkout@v4
         with:
-          repository: ${{ vars.HOMEBREW_TAP }}
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: tap
-      - name: Update configured personal tap
-        working-directory: tap
-        run: |
-          mkdir -p Formula
-          cp /tmp/bitshelf.rb Formula/bitshelf.rb
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Formula/bitshelf.rb
-          if ! git diff --cached --quiet; then
-            git commit -m "bitshelf $GITHUB_REF_NAME"
-            git push
-          fi
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-release
+          path: archives
+      - env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release.py publish --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --directory archives
