@@ -120,28 +120,39 @@ or publication verification. Nonblocking audit findings remain outside this pass
 No installed executable, real store, remote configuration, tag or deployment was
 changed.
 
-## Remaining audit findings
+## Final local audit closeout
 
-Local macOS 15.7.4 ARM64 verification of the follow-up fixes:
+Reviewed and committed the remaining audit fixes as `d86ec23` (CLI), `0178fd5`
+(release tooling), and `c4f8eaa` (docs). Independent verification of `c4f8eaa`
+in a clean local clone on macOS 15.7.4 ARM64 passed:
 
-- Formatting, warnings-denied Clippy and all **114 Rust tests** on 1.98.1 and
-  MSRV 1.91.0. New regressions cover the required add body source, exact
-  case/normalization identity on this case-insensitive APFS volume, root file
-  links, invalid reserved-date repair, `bs.toml` comment preservation, closed
-  pipes with failing commands, empty/relative `XDG_CONFIG_HOME`, FIFO bit files,
-  retention bounds, blank names and a missing store root. Prune tests now assert
-  that permanent shelves produce no rows.
-- Generated references have no drift; npm install and the documentation build
-  pass, and the benchmark JSON is emitted with the site. Link checking now
-  validates anchors. All 13 release/formula/tap script tests pass under both
-  `-B` and `-m unittest`; workflow lint and regenerated notices pass.
-- Clean-clone ARM and Intel (Rosetta) archives passed extraction smoke tests with
-  the pinned-commit check, binary SHA-256 and binary `minos` 15.0. A mismatched
-  commit was refused. The archive, handoffs and README quickstart flows were run
-  in a temporary store.
+- Formatting, locked build, warnings-denied Clippy and all **114 Rust tests**;
+  Clippy and all tests also pass on MSRV 1.91.0 (release toolchain 1.98.1).
+  Test helpers now invoke the exact supplied argv instead of adding `--stdin`.
+  Coverage includes explicit body sources, stored-name identity, private new
+  shell-file permissions, prune scope, configuration comments, date repair,
+  closed pipes, XDG settings, non-regular bits, retention bounds and missing
+  stores.
+- All **17 Python tests** via unittest discovery; individual script invocations
+  also passed in the working checkout. Includes tag movement during upload:
+  publication is refused and the release remains a draft.
+- Generated-reference drift (including untracked files), npm clean install and
+  docs build, emitted benchmark JSON, local links/anchors, workflow lint, and
+  regenerated dependency notices. Generated command links are now relative,
+  usable both on the site and in extracted documentation.
+- Native ARM and Intel-under-Rosetta release builds, clean-source packaging and
+  extracted archive smoke tests with `--commit`. Recorded binary SHA-256 and
+  macOS minimum 15.0 agree with each binary. A wrong expected commit is refused.
 
-Release workflows now pin one commit across jobs, require an annotated tag, verify
-the remote tag before creating and publishing, and drop checkout credentials;
-the tap refuses non-immutable releases. None of this has run on GitHub. Homebrew
-lifecycle, native Intel/Linux, remote workflow and publication checks were not
-repeated or performed.
+Release sources and archives are SHA-pinned across jobs; remote annotated tags
+are checked before draft creation and again before publication. Tap consumption
+requires GitHub's immutable-release flag. RELEASING.md now distinguishes an
+optional separately versioned RC rehearsal from the final immutable stable tag,
+and requires approval of the exact artifacts from one publishing run.
+
+**Local preparation is complete; publication readiness is still conditional.**
+No changed workflow has run on GitHub. Native Intel/Linux, protected environments,
+immutable-release/tag setup, final stable Homebrew gates and fresh-machine
+published-tap checks remain outstanding. The installed CLI/skill were not
+replaced; no real-store migration, push, tag, workflow dispatch, release or website
+deployment occurred. The live site still needs an authorized deployment.
