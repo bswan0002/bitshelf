@@ -1,0 +1,4 @@
+required = ["title", "tags"]
+[tag_rules.project]
+required = true
+allowed = ["bitshelf"]

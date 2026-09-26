@@ -1,0 +1,3 @@
+store = "store"
+[aliases]
+archive = ["move", "{id}", "archive/{shelf}.{name}"]

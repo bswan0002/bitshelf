@@ -2045,3 +2045,70 @@ fn typed_assignment_rejects_nested_duplicates_tags_and_numeric_overflow() {
         assert!(!f.bit_path("notes/rejected").exists());
     }
 }
+
+#[test]
+fn first_release_fixture_preserves_contract_and_rejects_unknown_config() {
+    fn copy_tree(source: &std::path::Path, destination: &std::path::Path) {
+        fs::create_dir_all(destination).unwrap();
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let dest = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_tree(&entry.path(), &dest);
+            } else {
+                fs::copy(entry.path(), dest).unwrap();
+            }
+        }
+    }
+    let f = Fixture::new();
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/releases/0.1.0");
+    copy_tree(&fixture, f._temp.path());
+    let expected = fs::read(fixture.join("expected.body")).unwrap();
+    let out = f.run(&["list", "--json"]);
+    assert!(out.status.success());
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(value["complete"], true);
+    assert_eq!(value["errors"], serde_json::json!([]));
+    assert_eq!(value["results"].as_array().unwrap().len(), 1);
+    let metadata = value["results"][0]["metadata"].clone();
+    assert_eq!(metadata["custom"]["future"][2], u64::MAX);
+    assert_eq!(
+        f.ok(&["show", "notes/note space", "--body"]).stdout,
+        expected
+    );
+    f.ok(&[
+        "edit",
+        "notes/note space",
+        "--set-json",
+        "added={\"value\":[1,false]}",
+    ]);
+    f.ok(&["archive", "notes/note space"]);
+    assert_eq!(
+        f.ok(&["show", "archive/notes.note space", "--body"]).stdout,
+        expected
+    );
+    let row = f.json(&["list", "archive", "--json"]);
+    let row = row
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == "archive/notes.note space")
+        .unwrap();
+    assert_eq!(row["metadata"]["custom"], metadata["custom"]);
+    assert_eq!(row["metadata"]["created"], metadata["created"]);
+    assert_eq!(row["metadata"]["updated"], metadata["updated"]);
+    assert_eq!(
+        row["metadata"]["added"],
+        serde_json::json!({"value":[1,false]})
+    );
+    let bytes = fs::read(f.bit_path("archive/notes.note space")).unwrap();
+    fs::copy(fixture.join("unsupported-config.toml"), &f.config).unwrap();
+    let output = f.run(&["list", "--json"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unknown field"));
+    assert_eq!(
+        fs::read(f.bit_path("archive/notes.note space")).unwrap(),
+        bytes
+    );
+}
