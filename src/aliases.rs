@@ -1,6 +1,20 @@
-//! User-configured argv aliases. No shell, recursion, or project-local execution.
+//! Explicit global argv aliases: built-in expansions or opted-in helper executables.
 use anyhow::{Context, Result, ensure};
+use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ffi::OsString, path::PathBuf};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum Alias {
+    Builtin(Vec<String>),
+    External(ExternalAlias),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExternalAlias {
+    pub exec: Vec<String>,
+}
 
 const BUILTINS: &[&str] = &[
     "init",
@@ -43,8 +57,8 @@ fn expand(template: &str, id: &str) -> Result<String> {
     Ok(result)
 }
 
-pub fn validate(aliases: &BTreeMap<String, Vec<String>>) -> Result<()> {
-    for (name, args) in aliases {
+pub fn validate(aliases: &BTreeMap<String, Alias>) -> Result<()> {
+    for (name, alias) in aliases {
         ensure!(
             !name.is_empty()
                 && name
@@ -57,6 +71,16 @@ pub fn validate(aliases: &BTreeMap<String, Vec<String>>) -> Result<()> {
             !BUILTINS.contains(&name.as_str()),
             "alias {name} conflicts with a built-in command"
         );
+        let args = match alias {
+            Alias::Builtin(args) => args,
+            Alias::External(helper) => {
+                ensure!(
+                    helper.exec.first().is_some_and(|s| !s.trim().is_empty()),
+                    "helper alias {name} must contain an executable"
+                );
+                continue;
+            }
+        };
         ensure!(
             args.first()
                 .is_some_and(|a| BUILTINS.contains(&a.as_str()) && a != "help"),
@@ -73,6 +97,7 @@ pub fn validate(aliases: &BTreeMap<String, Vec<String>>) -> Result<()> {
 pub fn dispatch() -> Result<()> {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     let mut config = None;
+    let mut global_json = false;
     let mut index = 0;
     while index < args.len() {
         let word = args[index].to_string_lossy();
@@ -84,7 +109,9 @@ pub fn dispatch() -> Result<()> {
             }
         } else if let Some(path) = word.strip_prefix("--config=") {
             config = Some(PathBuf::from(path));
-        } else if word != "--json" {
+        } else if word == "--json" {
+            global_json = true;
+        } else {
             break;
         }
         index += 1;
@@ -121,8 +148,46 @@ pub fn dispatch() -> Result<()> {
     }
     let path = crate::config::config_path(config.as_deref())?;
     let cfg = crate::config::Config::load(&path)?;
-    let Some(template) = cfg.aliases.get(name) else {
+    let Some(alias) = cfg.aliases.get(name) else {
         return Ok(());
+    };
+    let template = match alias {
+        Alias::Builtin(template) => template,
+        Alias::External(helper) => {
+            // Consume bs configuration options, but preserve all helper arguments
+            // (including --help and literal arguments after --) without expansion.
+            let mut helper_args: Vec<OsString> = if global_json {
+                vec!["--json".into()]
+            } else {
+                vec![]
+            };
+            let mut i = index + 1;
+            let mut literal = false;
+            while i < args.len() {
+                let word = args[i].to_string_lossy();
+                if !literal && word == "--config" {
+                    i += 2;
+                    continue;
+                }
+                if !literal && word.starts_with("--config=") {
+                    i += 1;
+                    continue;
+                }
+                if word == "--" {
+                    literal = true;
+                }
+                helper_args.push(args[i].clone());
+                i += 1;
+            }
+            let status = std::process::Command::new(&helper.exec[0])
+                .args(&helper.exec[1..])
+                .args(helper_args)
+                .env("BS_CONFIG", &path)
+                .env("BS_EXECUTABLE", std::env::current_exe()?)
+                .status()
+                .with_context(|| format!("cannot execute helper alias {name}"))?;
+            std::process::exit(status.code().unwrap_or(1));
+        }
     };
     let templated = template.iter().any(|s| s.contains('{'));
     if forwarded.iter().any(|s| s == "--help" || s == "-h") {

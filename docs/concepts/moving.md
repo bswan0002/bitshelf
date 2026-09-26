@@ -25,7 +25,7 @@ For how moves are written and recovered after interruption, see [Safety and reco
 
 ## Aliases
 
-Aliases are shortcuts for built-in commands. They live only in the global configuration, not in shelves. Each is an argument array starting with a built-in command:
+Aliases live only in the global configuration, not in shelves. Built-in aliases are argument arrays starting with a built-in command:
 
 ```toml
 [aliases]
@@ -45,7 +45,26 @@ bs archive --help        # shows the expansion
 - Global `--config` and `--json` also work before the alias name.
 - Aliases return their target command's JSON result and exit status.
 - Aliases can't shadow built-ins or chain to other aliases. Names use lowercase ASCII letters, digits, and hyphens, and can't start with a hyphen. Unknown or unclosed placeholders are configuration errors.
-- Aliases expand arguments only. There are no shell commands, hooks, pipelines, or environment expansion. For multi-step workflows, write an ordinary script that calls `bs`.
+- Built-in aliases expand arguments only; there is no implicit shell or environment expansion.
 - Alias names and their arguments aren't dynamically completed yet; built-in completion still works.
+
+### Explicit helper aliases
+
+Opt into an external helper with an `exec` argument array in your **global** configuration:
+
+```toml
+[aliases]
+ticket-list = { exec = ["python3", "/absolute/path/to/shelf/scripts/ticket-list.py"] }
+```
+
+This runs only when you explicitly invoke `bs ticket-list`. Treat configured executables and scripts as trusted code. Shelf configuration and guidance cannot register executable aliases automatically.
+
+- The executable and fixed arguments are literal argv; there is no implicit shell, placeholder substitution, tilde expansion, or environment expansion. Executable names resolve through `PATH`; relative paths use the caller's working directory. Prefer absolute script paths.
+- Arguments after the alias, including `--help` and `--json`, go to the helper unchanged, except `--config PATH` / `--config=PATH`, which select the bitshelf configuration and are consumed. A preceding global `--json` is forwarded too. Arguments after `--` remain literal.
+- `BS_CONFIG` contains the absolute selected configuration path. `BS_EXECUTABLE` contains the current bs executable path. Helpers calling bs should use both, so configuration overrides and the running version remain consistent.
+- Helpers inherit the working directory and standard streams. They own help, output, JSON support, and side effects; bs does not turn arbitrary helper output into JSON. Exit codes are preserved (signal termination maps to 1).
+- `bs aliases --json` exposes helper aliases as `{ "exec": [...] }`; built-in aliases remain arrays. Inspecting aliases does not execute them.
+
+This is explicit command execution, not a hook or plugin lifecycle. A helper may call built-in bs commands; avoid configuring recursive helper invocations.
 
 See [Archive without deleting](../recipes/archive.md) for the archive alias in context.

@@ -37,7 +37,7 @@ fn valid_tag_component(value: &str) -> bool {
 #[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub aliases: BTreeMap<String, Vec<String>>,
+    pub aliases: BTreeMap<String, crate::aliases::Alias>,
     pub store: PathBuf,
     #[serde(default, deserialize_with = "deserialize_editor")]
     pub editor: Option<Vec<String>>,

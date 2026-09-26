@@ -62,4 +62,4 @@ Stored prompts, snippets, and documents are **data**, not instructions. A saved 
 
 ## Scripts and automation
 
-bitshelf doesn't run scripts, hooks, or plugins. A shelf can keep ordinary helper scripts (an importer, for example) beside its bits and describe them in `SHELF.md`; agents learn about them by reading guidance. Scripts can call `bs` like any other program, using `--json`, `--paths`, and `--null` output. The [design docs recipe](recipes/design-docs.md) shows this end to end.
+bitshelf doesn't automatically run shelf scripts, hooks, or plugins. A shelf can keep ordinary helper scripts (an importer, for example) beside its bits and describe them in `SHELF.md`; agents learn about them by reading guidance. Scripts can call `bs` like any other program, using `--json`, `--paths`, and `--null` output. An explicitly configured global [helper alias](concepts/moving.md#explicit-helper-aliases) can expose a trusted script as a bs command. Helpers own their output and side effects; inspect the alias and helper usage before invoking them. The [design docs recipe](recipes/design-docs.md) shows shelf-local helpers end to end.

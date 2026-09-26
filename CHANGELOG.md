@@ -2,6 +2,8 @@
 
 ## 0.1.0 — Unreleased prototype
 
+- Explicit global helper aliases via `{ exec = [...] }`, with literal argv, configuration/executable environment context, and forwarded help/JSON flags; shelf helpers remain opt-in rather than automatic hooks.
+
 - Ranked, index-free search with cross-field AND terms, exact phrases, `!` exclusions, separator-insensitive ID/tag matching, `--any`, exact `--tag` filtering, `--sort id`, and JSON match fields/scores; updated retrieval docs and agent skill.
 
 - Validated, no-clobber `bs move` with renaming, string metadata assignments, dry runs, and timestamp-history transfer.
