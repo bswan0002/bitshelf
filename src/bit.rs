@@ -28,9 +28,7 @@ pub fn parse(raw: &str) -> Result<(Mapping, &str)> {
     for line in raw[start..].split_inclusive('\n') {
         if line.trim_end_matches(['\r', '\n']) == "---" {
             let yaml = &raw[start..offset];
-            let value = crate::metadata::from_yaml(
-                serde_yaml::from_str(yaml).context("malformed YAML frontmatter")?,
-            )?;
+            let value = crate::metadata::parse(yaml).context("malformed YAML frontmatter")?;
             let map = if value.is_null() {
                 Mapping::new()
             } else {
@@ -184,7 +182,10 @@ pub fn create(
                 .into(),
         );
     }
-    Ok(format!("---\n{}---\n{body}", serde_yaml::to_string(&map)?))
+    Ok(format!(
+        "---\n{}---\n{body}",
+        serde_saphyr::to_string(&map)?
+    ))
 }
 
 #[cfg(test)]

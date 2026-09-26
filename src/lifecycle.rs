@@ -138,7 +138,7 @@ impl State {
 }
 
 pub fn render(map: &crate::metadata::Mapping, body: &str) -> Result<String> {
-    Ok(format!("---\n{}---\n{body}", serde_yaml::to_string(map)?))
+    Ok(format!("---\n{}---\n{body}", serde_saphyr::to_string(map)?))
 }
 fn hash(raw: &str) -> Result<String> {
     let (mut map, body) = bit::parse(raw)?;

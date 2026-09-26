@@ -578,8 +578,8 @@ fn edit_and_sync_manage_reserved_timestamps_and_preserve_body() {
     f.ok(&["add", "notes/tracked", "--title", "Tracked"]);
     let path = f.root.join("notes/bits/tracked.md");
     let before = fs::read_to_string(&path).unwrap();
-    let metadata = |raw: &str| -> serde_yaml::Value {
-        serde_yaml::from_str(raw.split("---").nth(1).unwrap()).unwrap()
+    let metadata = |raw: &str| -> serde_json::Value {
+        serde_saphyr::from_str(raw.split("---").nth(1).unwrap()).unwrap()
     };
     let first = metadata(&before);
     assert_eq!(first["created"], first["updated"]);
@@ -672,10 +672,16 @@ fn sync_baselines_legacy_files_and_reports_invalid_bits() {
     assert!(results["results"][0]["error"].is_string());
     assert_eq!(results["results"][1]["baselined"], true);
     let raw = fs::read_to_string(&path).unwrap();
-    assert!(raw.contains("created: 2020-01-01T00:00:00Z"));
+    assert_eq!(
+        serde_saphyr::from_str::<Value>(raw.split("---").nth(1).unwrap()).unwrap()["created"],
+        "2020-01-01T00:00:00Z"
+    );
     assert!(raw.contains("updated:"));
     assert!(raw.contains("custom: keep"));
-    assert!(raw.contains("expires: 2099-01-01T00:00:00Z"));
+    assert_eq!(
+        serde_saphyr::from_str::<Value>(raw.split("---").nth(1).unwrap()).unwrap()["expires"],
+        "2099-01-01T00:00:00Z"
+    );
     assert!(raw.ends_with("body"));
     assert_eq!(
         fs::read_to_string(f.root.join("notes/bits/broken.md")).unwrap(),
@@ -803,8 +809,14 @@ fn stdin_edit_preserves_unknown_metadata_expiration_and_reserved_dates() {
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success());
     let raw = fs::read_to_string(f.root.join("notes/bits/imported.md")).unwrap();
-    assert!(raw.contains("created: 2020-01-01T00:00:00Z"));
-    assert!(raw.contains("expires: 2099-01-01T00:00:00Z"));
+    assert_eq!(
+        serde_saphyr::from_str::<Value>(raw.split("---").nth(1).unwrap()).unwrap()["created"],
+        "2020-01-01T00:00:00Z"
+    );
+    assert_eq!(
+        serde_saphyr::from_str::<Value>(raw.split("---").nth(1).unwrap()).unwrap()["expires"],
+        "2099-01-01T00:00:00Z"
+    );
     assert!(raw.contains("keep: true"));
     assert!(raw.ends_with("---\nbody, not metadata\n---\nexact"));
     for command in ["add", "edit"] {
