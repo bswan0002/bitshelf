@@ -21,6 +21,11 @@
 
 `metadata` is a JSON representation of YAML frontmatter, including unknown fields; unsupported YAML values produce explicit errors (see [frontmatter](concepts/frontmatter.md)). `errors` is an array of diagnostic strings. `title` is the nonempty title metadata string, or `null` when absent/invalid; it is not synthesized from the filename. Use `id` for display and identity. Search/list include accessible invalid bits with per-bit errors, preserve healthy results, set complete=false, emit scope errors `{path, error}`, and exit 1. Unreadable/unsupported paths are scope errors, never fabricated empty bits.
 
+**Integer precision:** bs preserves all i64/u64 integers exactly. JavaScript's
+`JSON.parse` cannot represent every integer beyond ±(2^53−1); converting to
+`BigInt` afterward cannot recover lost digits. Use a lossless JSON parser when
+exact large values matter, or store large identifiers as strings.
+
 Search's `matches.fields` lists positive-term matches in stable order: `id`, `title`, `tags`, `body` (only matching fields are included). `matches.score` is an implementation-defined ranking signal. Results are score-descending with ID tie-breaking unless `--sort id` is selected. Exclusion-only matches have `fields: []` and `score: 0`. Bodies and snippets are not emitted; retrieve selected bits with `show`. See [search syntax](concepts/finding.md#search).
 
 `context.guidance` is `{path, text}` or `null`. `context.path` is the shelf root; `bits_path` is its content directory. Bit IDs remain `shelf/bit-name`, while bit paths include `bits/`. In shelf listings, `configured` means local `bs.toml` exists and `missing` means the bits directory is absent or not a directory. Structural validation errors (missing bits directories, invalid shelf configuration, or symlinked shelves/settings/guidance) produce rows with `id: null`. Symlinked bits produce rows with their bit IDs. Validation does not follow links and continues checking other accessible shelves/bits. Deleted shelves are no longer discovered. Prune statuses are `would_remove`, `removed`, `removed_with_error`, or `skipped`; skipped rows include `error`. Future/permanent bits are not prune results. `--dry-run` changes only eligible rows' status, not selection rules.
