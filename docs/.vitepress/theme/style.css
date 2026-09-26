@@ -153,7 +153,7 @@ body {
   outline-offset: 2px;
 }
 
-/* --- Prototype notice: a quiet status line ---------------------------------- */
+/* --- Release-status notice: a quiet status line ---------------------------------- */
 
 .development-warning {
   position: fixed;

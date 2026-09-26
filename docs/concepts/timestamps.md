@@ -48,8 +48,8 @@ excluding only top-level `created` and `updated`. `expires` and unknown user fie
 participate. Mapping order, comments, quoting style, and equivalent YAML syntax
 do not constitute a semantic metadata change. Sequence order, field absence vs.
 null, value types, body whitespace, line endings, and final newlines do matter.
-Nested mapping order is likewise irrelevant. Ticket 02 defines the supported
-value model; comparison must not use lossy JSON conversion.
+Nested mapping order is likewise irrelevant. [Frontmatter values](frontmatter.md)
+defines the supported value model; comparison doesn't use lossy JSON conversion.
 
 Compare against the original read by this command, never an older version.
 An external edit that predates the command is already authoritative and is not a
@@ -97,17 +97,17 @@ retrying blindly. Move partial-publication outcomes follow the filesystem commit
 contract; timestamps do not imply transactionality. No separate timestamp-state
 commit exists.
 
-## Removing prototype history
+## No timestamp history
 
-Remove `bs sync` rather than retain an alias or no-op compatibility command.
-Stop reading, writing, validating, or repairing `.bitshelf/state.json`. Ignore
-existing prototype history, even if corrupt; leave it on disk for optional manual
-removal. Do not migrate it or restore dates from it. Identifier reuse has no history.
+There is no `bs sync` command and no persistent timestamp history. `bs` never
+reads, writes, validates or repairs `.bitshelf/state.json`; a `state.json` or
+`state.lock` left there by a pre-release build is ignored, even if corrupt, and
+left on disk for optional manual removal. Dates are never restored from it, and a
+reused identifier inherits no history.
 
-Writer locking remains independent of timestamp authority. The lock implementation
-must not depend on the prototype `state.lock` sentinel; obsolete state/lock files
-must not block commands. Do not recursively delete `.bitshelf`, which may contain
-independent locking or other files. See the safety documentation for writer locking.
+Writer locking is independent of timestamps and doesn't depend on those files, so
+they never block commands. `bs` never recursively deletes `.bitshelf`, which holds
+the writer lock. See [Safety and recovery](safety.md#writer-locking).
 
 See [Saving and editing](editing.md) and the
 [timestamp fixture specification](timestamp-fixtures.md).

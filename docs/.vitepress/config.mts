@@ -1,3 +1,5 @@
+import { cpSync } from 'node:fs'
+import { join } from 'node:path'
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
@@ -5,6 +7,11 @@ export default defineConfig({
   description: 'A shared shelf for work worth keeping, used by people and agents',
   base: '/',
   cleanUrls: true,
+  // Raw measurement files live beside benchmarks.md so the same relative link
+  // works on GitHub, in release archives and on the site.
+  buildEnd(site) {
+    cpSync(join(site.srcDir, 'benchmarks'), join(site.outDir, 'benchmarks'), { recursive: true })
+  },
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['meta', { name: 'theme-color', content: '#f2ece0', media: '(prefers-color-scheme: light)' }],
@@ -38,6 +45,9 @@ export default defineConfig({
         { text: 'Release matching', link: '/releases' },
         { text: 'Compatibility', link: '/compatibility' },
         { text: 'Platforms', link: '/platforms' },
+        { text: 'Signing and provenance', link: '/signing' },
+        { text: 'Verification', link: '/verification' },
+        { text: 'Scale measurements', link: '/benchmarks' },
       ]},
       { text: 'Recipes', items: [
         { text: 'Design docs ready for implementation', link: '/recipes/design-docs' },
@@ -49,8 +59,12 @@ export default defineConfig({
       { text: 'Reference', items: [
         { text: 'Shelves, bits, and configuration', link: '/concepts/shelves' },
         { text: 'Saving and editing', link: '/concepts/editing' },
+        { text: 'Metadata mutations', link: '/concepts/metadata' },
+        { text: 'Identifiers', link: '/concepts/identifiers' },
+        { text: 'Frontmatter values', link: '/concepts/frontmatter' },
         { text: 'Finding and reading', link: '/concepts/finding' },
         { text: 'Timestamps', link: '/concepts/timestamps' },
+        { text: 'Timestamp fixtures', link: '/concepts/timestamp-fixtures' },
         { text: 'Moving and aliases', link: '/concepts/moving' },
         { text: 'Expiration and pruning', link: '/concepts/pruning' },
         { text: 'Shell completion', link: '/concepts/completion' },

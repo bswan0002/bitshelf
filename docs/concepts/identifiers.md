@@ -7,7 +7,7 @@ Unknown options are usage errors (exit 2), not names. Put every option before
 
 ```sh
 bs shelf add -- -notes
-bs add --title 'Example' -- -notes/bit
+bs add --title 'Example' --file note.md -- -notes/bit
 bs show --body -- -notes/bit
 bs move --dry-run -- -notes/bit notes/bit
 ```
@@ -17,7 +17,7 @@ separator. For a flag's hyphen-prefixed value use the attached form, for example
 `bs search bit --shelf=-notes` or `--title=-example`. Built-in aliases follow the
 same operand convention; explicit helper aliases preserve the helper's argv.
 
-Discovered IDs pass the same checks as explicit arguments and resolve to their original files. Unsupported names, `.md` directories/special files and symlinks are diagnostics, never lossy fabricated IDs. Validation reports the real path and a null ID when no valid ID exists. JSON paths for unrepresentable OS strings are diagnostic display strings, not round-trippable addresses. `--paths --null` emits exact OS path bytes for supported discovered entries; it is not a raw filesystem enumerator for unsupported filenames. Use filesystem tools to repair unsupported names.
+Discovered IDs pass the same checks as explicit arguments and resolve to their original files. Explicit IDs and shelf names must match the stored name exactly: on case-insensitive or normalizing filesystems (such as default APFS), a variant spelling like `notes/FOO` for a stored `notes/Foo` is refused with an error naming the stored ID rather than resolving to it, and `bs add` refuses a variant of an existing name. Names that are empty or only whitespace are rejected. Unsupported names, `.md` directories/special files and symlinks are diagnostics, never lossy fabricated IDs. Validation reports the real path and a null ID when no valid ID exists. JSON paths for unrepresentable OS strings are diagnostic display strings, not round-trippable addresses. `--paths --null` emits exact OS path bytes for supported discovered entries; it is not a raw filesystem enumerator for unsupported filenames. Use filesystem tools to repair unsupported names.
 
 Names retain case and Unicode representation; bs does not normalize either. Filesystem case sensitivity and Unicode normalization apply. No-clobber checks reject collisions, including case-only moves on case-insensitive filesystems. Case-only moves on case-sensitive filesystems are ordinary moves. Use an intermediate distinct name where needed. No promise is made that every accepted name is portable between filesystems or operating systems; avoid spaces, punctuation and case/normalization-only distinctions when portability matters.
 

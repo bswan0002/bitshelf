@@ -11,7 +11,7 @@ Edit a bit via your editor, or replace its body/metadata noninteractively
 ## Flags
 - **`--set <SET>`** — Set a literal string KEY=VALUE (repeatable)
 - **`--set-json <SET_JSON>`** — Set a typed JSON value KEY=JSON (repeatable)
-- **`--unset <UNSET>`** — Remove a metadata field (repeatable)
+- **`--unset <UNSET>`** — Remove a metadata field (repeatable); also removes an invalid created/updated
 - **`--file <FILE>`** — Read a body from a file, or - for stdin
 - **`--stdin`**
 - **`--title <TITLE>`**

@@ -7,7 +7,7 @@ BS="${BS:-target/debug/bs}"
 USAGE="${USAGE:-usage}"
 mkdir -p dist/completions docs/reference
 "$BS" __usage_spec__ > dist/bs.usage.kdl
-"$USAGE" generate markdown --file dist/bs.usage.kdl --multi --out-dir docs/reference --url-prefix /reference
+"$USAGE" generate markdown --file dist/bs.usage.kdl --multi --out-dir docs/reference --url-prefix .
 "$USAGE" generate manpage --file dist/bs.usage.kdl --out-file dist/bs.1
 "$BS" completion --shell bash > dist/completions/bs.bash
 "$BS" completion --shell zsh > dist/completions/_bs

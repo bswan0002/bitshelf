@@ -19,7 +19,7 @@ Use original `created = 2026-01-01T00:00:00Z`,
 | Edit changes expires or an unknown nested field | Counts as user-metadata change; stamp updated; no automatic retention extension |
 | Exact no-op, including body-only input equal to original | Preserve entire source bytes; no rewrite |
 | YAML comment, mapping-order, nested-order, or quoting-only edit | Preserve dates; explicit formatting edits may be published |
-| Sequence reorder, scalar type change, field absence vs. null | Counts as a change where supported by ticket 02 |
+| Sequence reorder, scalar type change, field absence vs. null | Counts as a change for supported values ([frontmatter](frontmatter.md)) |
 | Body newline, whitespace, CRLF/LF, or final-newline change | Counts as a change; preserve proposed body bytes |
 | External edit before command; command makes no further change | No timestamp repair or historical comparison |
 | Plain move across IDs/shelves, including differing retention defaults | Preserve dates and absence; no stamp from identity change |
@@ -43,11 +43,12 @@ Use original `created = 2026-01-01T00:00:00Z`,
 | Add/move collision or pre-publication write failure | Existing files and their dates unchanged |
 | Publication succeeds, durability confirmation or cleanup fails | Report committed/uncertain outcome accurately; no promised rollback |
 | Open, list, show, search, validate | No timestamp or history writes |
-| No state, stale state, corrupt state, obsolete state.lock | Same timestamp behavior; prototype files untouched and never consulted |
+| No state, stale state, corrupt state, obsolete state.lock | Same timestamp behavior; leftover files untouched and never consulted |
 | Delete/recreate at same identifier | Add gets new dates; no inherited history |
 | Removed sync command | Ordinary unknown-command failure; no reconciliation or migration |
 
 Run command-boundary cases against both human and JSON output where supported.
 Exercise editor finalization using a deterministic editor helper. Lock release,
 durable publication, move partial outcomes, and platform failure injection are
-owned by tickets 10–13/17; they must not reintroduce lifecycle bookkeeping.
+covered by the locking, filesystem, move and prune tests; none of them keep
+lifecycle bookkeeping.

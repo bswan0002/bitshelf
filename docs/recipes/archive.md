@@ -17,7 +17,7 @@ The bit moves to `archive/notes.checklist` and records where it came from. Defau
 | `archive` shelf | You | An ordinary shelf |
 | `discoverable = false` | You, in `archive/bs.toml` | Leaves the shelf out of default list/search results |
 | `archive` alias | You, in global config | Shortcut for a `bs move` with a naming pattern and a `moved_from` field |
-| Move validation and safety | `bs` | Refuses collisions and preserves the body and history |
+| Move validation and safety | `bs` | Refuses collisions and preserves the body and other metadata |
 
 Archive isn't a special bit state. It's an ordinary shelf, a discovery setting, and an alias.
 
@@ -29,15 +29,15 @@ Archive isn't a special bit state. It's an ordinary shelf, a discovery setting, 
    bs shelf add archive
    ```
 
-2. In `archive/bs.toml`, set at the top level (outside any `[tag_rules.*]` table):
+2. `bs shelf add` writes `archive/bs.toml` with `discoverable = true`. Open that file (`bs open archive`, or any editor) and change the existing line to:
 
    ```toml
    discoverable = false
    ```
 
-   Leave `retention` unset for a permanent archive.
+   Edit the line in place rather than appending a new one: a repeated key is invalid TOML, and an unreadable shelf configuration makes store-wide commands report incomplete results. Keep the setting at the top level, outside any `[tag_rules.*]` table. Leave `retention` unset for a permanent archive. `bs context archive` should now report `"discoverable": false`.
 
-3. Add an alias to your global configuration (`~/.config/bitshelf/config.toml`):
+3. Add an alias to your global configuration (`$XDG_CONFIG_HOME/bitshelf/config.toml`, by default `~/.config/bitshelf/config.toml`). If the file already has an `[aliases]` table, add the line to it instead of starting a second table:
 
    ```toml
    [aliases]

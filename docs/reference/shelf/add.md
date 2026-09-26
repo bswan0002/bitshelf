@@ -11,5 +11,5 @@ Create a shelf; existing contents are preserved
 ## Flags
 - **`--description <DESCRIPTION>`**
 - **`--required <REQUIRED>`** — Comma-separated built-in metadata fields
-- **`--retention <RETENTION>`** — Positive whole days, e.g. 14d
+- **`--retention <RETENTION>`** — Positive whole days up to 36500d, e.g. 14d
 - **`-h --help`** — Print help

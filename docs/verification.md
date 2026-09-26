@@ -119,3 +119,29 @@ This pass does not claim new archive/Homebrew, native Intel/Linux, remote workfl
 or publication verification. Nonblocking audit findings remain outside this pass.
 No installed executable, real store, remote configuration, tag or deployment was
 changed.
+
+## Remaining audit findings
+
+Local macOS 15.7.4 ARM64 verification of the follow-up fixes:
+
+- Formatting, warnings-denied Clippy and all **114 Rust tests** on 1.98.1 and
+  MSRV 1.91.0. New regressions cover the required add body source, exact
+  case/normalization identity on this case-insensitive APFS volume, root file
+  links, invalid reserved-date repair, `bs.toml` comment preservation, closed
+  pipes with failing commands, empty/relative `XDG_CONFIG_HOME`, FIFO bit files,
+  retention bounds, blank names and a missing store root. Prune tests now assert
+  that permanent shelves produce no rows.
+- Generated references have no drift; npm install and the documentation build
+  pass, and the benchmark JSON is emitted with the site. Link checking now
+  validates anchors. All 13 release/formula/tap script tests pass under both
+  `-B` and `-m unittest`; workflow lint and regenerated notices pass.
+- Clean-clone ARM and Intel (Rosetta) archives passed extraction smoke tests with
+  the pinned-commit check, binary SHA-256 and binary `minos` 15.0. A mismatched
+  commit was refused. The archive, handoffs and README quickstart flows were run
+  in a temporary store.
+
+Release workflows now pin one commit across jobs, require an annotated tag, verify
+the remote tag before creating and publishing, and drop checkout credentials;
+the tap refuses non-immutable releases. None of this has run on GitHub. Homebrew
+lifecycle, native Intel/Linux, remote workflow and publication checks were not
+repeated or performed.

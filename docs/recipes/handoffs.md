@@ -19,8 +19,11 @@ The new session starts with exactly what matters. Leaving things out is part of 
 ```sh
 bs shelf add handoffs \
   --description 'Focused briefs for continuing work in a fresh session' \
-  --required title
+  --required title \
+  --retention 14d
 ```
+
+Most handoffs are useful for days, not months, so the shelf starts with a retention period: every handoff gets an `expires` date when it's created. Leave out `--retention` if you want to keep handoffs until you delete or archive them.
 
 Add `handoffs/SHELF.md`:
 
@@ -78,16 +81,22 @@ bs show handoffs/docs-rewrite --body
 
 Once the work is done, delete the bit, [archive it](archive.md), or let it expire (below).
 
-## Optional: let handoffs expire
+## Let handoffs expire
 
-Most handoffs are useful for days, not months. Give the shelf a retention period so new handoffs get an expiration date:
+Check what has expired, then prune:
 
 ```sh
-bs shelf add handoffs --retention 14d
 bs prune handoffs --dry-run
+bs prune handoffs
 ```
 
-Retention only sets `expires` on new bits; nothing is deleted until you run `bs prune` yourself or schedule it. See [Let scratch material expire](expiring-shelves.md).
+Nothing is deleted until you run `bs prune` yourself or schedule it. See [Let scratch material expire](expiring-shelves.md).
+
+Retention sets `expires` only on bits created after it was configured. If you add `--retention` to an existing shelf (`bs shelf add handoffs --retention 14d`), older handoffs have no `expires`, and prune reports them as `skipped` and exits 1 on every run. Give each one an explicit RFC 3339 date with an offset, or delete or archive it:
+
+```sh
+bs edit handoffs/docs-rewrite --set expires=2026-10-09T00:00:00Z
+```
 
 ## What's built in
 

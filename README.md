@@ -27,25 +27,31 @@ bs init --store ~/bitshelf
 Keep something, then find it from another context:
 
 ```sh
+printf '# Pagination research\n\nCursor pagination is stable under inserts.\n' > findings.md
 bs add notes/pagination-research --tags api --file findings.md
 bs search 'pagination api'   # terms can match across fields; relevance-ranked
 bs show notes/pagination-research --body
+printf '# Pagination research\n\nUse opaque cursors.\n' > revised.md
 bs edit notes/pagination-research --file revised.md
 ```
 
-Install the agent skill separately:
+`bs add` needs a body source (`--file`, `--stdin` or `--interactive`). `bs completion install` previews its change and asks before editing your shell startup file; pass `--yes` when running it non-interactively.
+
+The agent skill is installed separately. Copy `skills/bitshelf/` from this checkout, or from your matching release archive, into your agent's skill directory, for example:
 
 ```sh
-# Copy skills/bitshelf/ from this checkout or your matching release archive.
+cp -R skills/bitshelf ~/.agents/skills/   # the destination depends on your agent
 ```
+
+See [Using with agents](docs/agents.md).
 
 ## Documentation
 
-- [Why bitshelf](docs/index.md) and [Get started](docs/start.md)
+- [Get started](docs/start.md)
 - Recipes: [design docs](docs/recipes/design-docs.md), [handoffs](docs/recipes/handoffs.md), [reusable code](docs/recipes/reusable-code.md), [archive](docs/recipes/archive.md), [expiring shelves](docs/recipes/expiring-shelves.md)
 - Reference: [shelves and configuration](docs/concepts/shelves.md), [editing](docs/concepts/editing.md), [finding](docs/concepts/finding.md), [timestamps](docs/concepts/timestamps.md), [moving and aliases](docs/concepts/moving.md), [pruning](docs/concepts/pruning.md), [completion](docs/concepts/completion.md), [safety and recovery](docs/concepts/safety.md), [JSON contract](docs/json.md)
 - [Command reference](docs/reference/index.md) (generated from Usage declarations)
-- [Install](docs/install.md) · [Releasing](RELEASING.md)
+- [Install](docs/install.md) · [Releasing](https://github.com/bswan0002/bitshelf/blob/main/RELEASING.md)
 
 ## Development
 
@@ -67,4 +73,4 @@ The Rust CLI is synchronous, one application package, with no search index; Mark
 
 Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64. See [Safety and recovery](docs/concepts/safety.md) for safety boundaries.
 
-Release archives include version-matched docs, skill, notices and build information. See [release matching](docs/releases.md), [compatibility](docs/compatibility.md), and [verification](docs/verification.md). Publication was held during preparation pending the maintainer’s command; bundled docs are a release snapshot, not a live publication-status page.
+Release archives include version-matched docs, skill, notices and build information. See [release matching](docs/releases.md), [compatibility](docs/compatibility.md), and [verification](docs/verification.md). Bundled docs are a release snapshot, not a live publication-status page.

@@ -36,7 +36,7 @@ const retrieval = [
 const adds = [
   { title: 'Conventions agents actually load', body: 'bs context hands an agent a shelf’s full guidance and requirements before it writes.' },
   { title: 'Structure that’s checked', body: 'Shelves can require titles or tags and restrict tag values, for example to known repository names. Invalid saves are rejected.' },
-  { title: 'Stable identifiers and JSON', body: 'Every bit is shelf/name, and every command has structured output for agents and scripts.' },
+  { title: 'Stable identifiers and JSON', body: 'Every bit is shelf/name, and store commands have structured JSON output for agents and scripts.' },
   { title: 'Exact content', body: 'Prompts and code are stored byte-for-byte; metadata lives in frontmatter.' },
   { title: 'Discovery you control', body: 'An archive shelf can stay out of default results while remaining accessible.' },
 ]

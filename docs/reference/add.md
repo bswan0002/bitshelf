@@ -3,7 +3,7 @@
 
 - **Usage:** `bs add [FLAGS] [ID]`
 
-Save a new bit, preserving the supplied body verbatim
+Save a new bit, preserving the supplied body verbatim. Requires --file, --stdin or --interactive
 
 ## Arguments
 - **`[ID]`** — Identifier: shelf/bit-name (no .md extension)
@@ -14,7 +14,7 @@ Save a new bit, preserving the supplied body verbatim
 - **`--unset <UNSET>`** — Remove a metadata field (repeatable)
 - **`--title <TITLE>`** — Optional descriptive title; the identifier is the display name
 - **`--tags <TAGS>`**
-- **`--file <FILE>`** — Read a body from a file, or - for stdin
-- **`--stdin`**
-- **`--interactive`**
+- **`--file <FILE>`** — Read a body from a file, or - for stdin (use /dev/null for an empty body)
+- **`--stdin`** — Read the body from standard input
+- **`--interactive`** — Prompt for missing details and write the body in your editor
 - **`-h --help`** — Print help

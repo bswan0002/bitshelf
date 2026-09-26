@@ -42,7 +42,7 @@ Targets:
 
 - macOS Apple Silicon (`aarch64-apple-darwin`)
 - macOS Intel (`x86_64-apple-darwin`)
-- Linux x86-64 (`x86_64-unknown-linux-gnu`, built/tested on Ubuntu 22.04; glibc 2.35 baseline)
+- Linux x86-64 (`x86_64-unknown-linux-gnu`, built and tested by the release workflow on Ubuntu 22.04; glibc 2.35 baseline; see [platform support](platforms.md) for which platforms have executed evidence)
 
 Release-candidate and first-release macOS archives are **not Developer ID signed or notarized**, so Gatekeeper may block browser downloads. Windows and Linux ARM are deferred.
 

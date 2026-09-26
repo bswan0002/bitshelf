@@ -21,7 +21,10 @@ built-in bit state. The names below are a recipe, not reserved identifiers.
    An existing shelf may have authoring constraints or retention that make it
    unsuitable; resolve those before repurposing it.
 4. In that shelf's `bs.toml`, set **top-level** `discoverable = false` (outside any
-   `[tag_rules.*]` table). Preserve other settings. A permanent archive should
+   `[tag_rules.*]` table). `bs shelf add` already writes `discoverable = true`, so
+   change that existing line in place; never append a second `discoverable` key,
+   because a duplicate TOML key makes the shelf configuration invalid and leaves
+   store-wide commands incomplete. Preserve other settings. A permanent archive should
    have no `retention` setting; removing existing retention changes pruning policy
    for the entire shelf, so obtain agreement before doing so. Exclusion from
    discovery alone does not prevent pruning.

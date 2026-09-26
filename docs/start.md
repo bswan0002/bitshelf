@@ -11,7 +11,7 @@ cargo install --path . --locked      # from a bitshelf checkout
 bs init --store ~/bitshelf
 ```
 
-`bs init` writes `~/.config/bitshelf/config.toml`, creates the store directory, and adds a `notes` shelf. Run it without arguments for interactive setup. It never overwrites an existing configuration.
+`bs init` writes `$XDG_CONFIG_HOME/bitshelf/config.toml` (by default `~/.config/bitshelf/config.toml`), creates the store directory, and adds a `notes` shelf. Run it without arguments for interactive setup. It never overwrites an existing configuration.
 
 A store is a directory of **shelves**; each shelf holds **bits**, which are Markdown files:
 

@@ -12,8 +12,8 @@ The destination is a shelf (keeping the bit name) or a complete `shelf/name` ID.
 
 - Moves refuse existing destinations, identical source and destination IDs, unsafe paths, and invalid destination metadata.
 - The **destination** shelf's requirements and tag rules apply; the source's don't. Read the destination's `bs context` guidance before moving content there.
-- `--set KEY=VALUE` (repeatable) sets a frontmatter **string**, preserving other metadata and the exact body. Values may contain `=`. It isn't YAML evaluation: `--set tags=…` can't build a list. `created` and `updated` stay reserved. For duplicate keys, the last assignment wins.
-- `--dry-run` validates and returns the planned destination without writing files or state.
+- `--set KEY=VALUE` (repeatable) sets a frontmatter **string**, preserving other metadata and the exact body. Values may contain `=`. It isn't YAML evaluation: `--set tags=…` can't build a list. `created` and `updated` stay reserved. Repeating a key, or combining conflicting operations on the same field, fails before anything is written. See [Metadata mutations](metadata.md) for `--set-json`, `--unset`, and the full rules.
+- `--dry-run` validates and returns the planned destination without writing files.
 
 **Timestamps.** A plain move preserves dates including absence. Metadata changes update `updated` relative to the current source; `created` is never invented. External edits already in the source are authoritative.
 

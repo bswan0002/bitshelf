@@ -35,10 +35,3 @@ List/search intentionally retain metadata, bodies and original bytes in memory,
 then encode JSON; peak memory grows with corpus size. A streaming implementation
 could reduce duplication at much larger scales, but these measurements do not
 justify an index, daemon, database or concurrency machinery.
-
-The real 27-ticket shelf helper took a five-run median of 44 ms with the release
-binary (49 ms with the installed prototype). This includes Python startup and a
-subprocess, and is not a core CLI benchmark. Its shelf-local tests pass with the
-new collection envelope; incomplete discovery is rejected. During development
-it also accepts the installed prototype's array so the maintainer workflow keeps
-working without replacing the installed executable.

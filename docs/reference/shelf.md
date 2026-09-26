@@ -10,5 +10,5 @@ Discover or create shelves
 
 ## Subcommands
 
-- [`bs shelf add [FLAGS] [NAME]`](/reference/shelf/add.md)
-- [`bs shelf list`](/reference/shelf/list.md)
+- [`bs shelf add [FLAGS] [NAME]`](./shelf/add.md)
+- [`bs shelf list`](./shelf/list.md)

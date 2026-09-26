@@ -8,7 +8,7 @@ For the workflow, see [Let scratch material expire](../recipes/expiring-shelves.
 bs shelf add tmp --retention 14d
 ```
 
-- Retention accepts positive whole days only (`14d`).
+- Retention accepts positive whole days only (`14d`), up to `36500d`.
 - New bits in the shelf get an explicit `expires` timestamp at creation plus the retention period.
 - Changing retention affects only future bits. Removing it (by editing `bs.toml`) disables pruning for that shelf.
 - Edits and moves preserve `expires` and never extend it.
@@ -22,8 +22,10 @@ bs prune --dry-run            # all shelves, same rules
 ```
 
 - Only bits with a valid explicit `expires` at or before the current time are removed.
-- Missing or invalid expiration, or otherwise invalid metadata, is reported as `skipped` with an error, and prune exits 1.
-- Guidance, hidden drafts, permanent shelves, symlinks, and bits that haven't expired yet are left alone.
+- On retention shelves, missing or invalid expiration, expired bits with otherwise invalid metadata, and unreadable bit entries are reported as `skipped` with an error (one row per bit), and prune exits 1. Fix a missing date with `bs edit ID --set expires=<RFC 3339>`.
+- Permanent shelves are never prune candidates: their bits, valid or not, produce no rows and don't make prune fail. Use `bs validate` to find invalid bits there.
+- Unreadable shelves or shelf configuration are reported as `skipped` rows with `id: null` because their retention is unknown.
+- Guidance, hidden drafts, symlinks, and bits that haven't expired yet are left alone.
 - Modification times are never used as a guess.
 - Pruning **deletes** files; nothing goes to the trash. Back up your store if you need recovery.
 
