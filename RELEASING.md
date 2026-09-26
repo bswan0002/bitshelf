@@ -46,3 +46,12 @@ A tap failure after publication does not roll back the release. Retry only the t
 update using published immutable checksums/artifacts. Never rebuild or overwrite
 a release just to repair a tap. Installation/docs/signing/platform gates are
 specified below as the preparation tickets land.
+
+## Signing and credentials
+
+The first release deliberately defers Developer ID signing/notarization and
+independent attestations; include docs/signing.md's limitations in release notes.
+Source builds are the fallback for blocked browser downloads. Action SHAs are
+pinned, build jobs are read-only, and publication requires the release environment.
+Restrict any tap token to contents-write on that one tap repository. Follow-up
+signing/attestation work is recorded in the policy and bs-decisions shelf.

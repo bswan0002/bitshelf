@@ -46,3 +46,9 @@ Targets:
 Prototype macOS archives are **not Developer ID signed or notarized**, so Gatekeeper may block browser downloads. Windows and Linux ARM are deferred.
 
 Exact tooling, runtime minimums, per-platform evidence gates and BUILD-INFO.json are described in [platform support](platforms.md).
+
+The first-release [signing/provenance policy](signing.md) explicitly defers Developer
+ID signing, notarization and independent attestations. A local ad-hoc Mach-O
+signature is not trusted publisher identity; Gatekeeper assessment rejected the
+local candidate. Source installation from a reviewed tag is the fallback. No
+Gatekeeper/quarantine bypass is recommended.
