@@ -1,0 +1,92 @@
+{
+  "environment": "macOS-15.7.4-arm64-arm-64bit",
+  "binary": "bs 0.1.0",
+  "body_bytes": 2048,
+  "repeats": 3,
+  "results": [
+    {
+      "bits": 1000,
+      "operation": "list",
+      "median_ms": 43.27,
+      "peak_mib": 13.75
+    },
+    {
+      "bits": 1000,
+      "operation": "search",
+      "median_ms": 45.0,
+      "peak_mib": 14.92
+    },
+    {
+      "bits": 1000,
+      "operation": "add",
+      "median_ms": 14.72,
+      "peak_mib": 4.06
+    },
+    {
+      "bits": 1000,
+      "operation": "edit",
+      "median_ms": 14.08,
+      "peak_mib": 4.09
+    },
+    {
+      "bits": 1000,
+      "operation": "move",
+      "median_ms": 18.7,
+      "peak_mib": 4.05
+    },
+    {
+      "bits": 1000,
+      "operation": "prune",
+      "median_ms": 87.1,
+      "peak_mib": 10.75
+    },
+    {
+      "bits": 1000,
+      "operation": "100 sequential imports",
+      "median_ms": 1389.61,
+      "peak_mib": 4.11
+    },
+    {
+      "bits": 10000,
+      "operation": "list",
+      "median_ms": 411.27,
+      "peak_mib": 100.67
+    },
+    {
+      "bits": 10000,
+      "operation": "search",
+      "median_ms": 438.99,
+      "peak_mib": 112.02
+    },
+    {
+      "bits": 10000,
+      "operation": "add",
+      "median_ms": 17.78,
+      "peak_mib": 4.06
+    },
+    {
+      "bits": 10000,
+      "operation": "edit",
+      "median_ms": 14.88,
+      "peak_mib": 4.11
+    },
+    {
+      "bits": 10000,
+      "operation": "move",
+      "median_ms": 18.91,
+      "peak_mib": 4.05
+    },
+    {
+      "bits": 10000,
+      "operation": "prune",
+      "median_ms": 442.68,
+      "peak_mib": 70.56
+    },
+    {
+      "bits": 10000,
+      "operation": "100 sequential imports",
+      "median_ms": 1372.19,
+      "peak_mib": 4.12
+    }
+  ]
+}

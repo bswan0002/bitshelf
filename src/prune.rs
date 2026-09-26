@@ -87,10 +87,15 @@ fn run_with(
         .into_iter()
         .map(|e| json!({"id":null,"path":e.path,"status":"skipped","error":e.error}))
         .collect();
+    let mut settings = std::collections::BTreeMap::new();
     for b in bits.results {
         let operation = (|| -> anyhow::Result<Option<&str>> {
             let shelf = b.id.split('/').next().unwrap();
-            match decide(&b, &store.settings(shelf)?, now) {
+            let cfg = settings
+                .entry(shelf.to_owned())
+                .or_insert_with(|| store.settings(shelf).map_err(|e| format!("{e:#}")));
+            let cfg = cfg.as_ref().map_err(|e| anyhow::anyhow!(e.clone()))?;
+            match decide(&b, cfg, now) {
                 Decision::Keep => return Ok(None),
                 Decision::Skip(error) => anyhow::bail!(error),
                 Decision::Remove => (),
