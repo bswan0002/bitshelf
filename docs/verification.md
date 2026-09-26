@@ -26,3 +26,42 @@ The temporary tap was removed. Linux and native Intel execution remain mandatory
 release-workflow gates; neither has been run locally. No synthetic Linux archive
 or checksum was used as installation evidence. The local two-target checksum set
 is intentionally insufficient for production publication.
+
+## Final candidate revision checks
+
+The revised 0.1.0 candidate passed locally on macOS 15.7.4 ARM64:
+
+- Formatting, warnings-denied Clippy, locked build and all 98 Rust tests on the
+  pinned 1.98.1 toolchain; locked build/tests/Clippy also passed on MSRV 1.91.0.
+- Generated-reference drift check, clean npm install and documentation build;
+  13 release/formula/tap script tests, workflow lint and dependency-notice checks.
+- Both newly built macOS archives passed extraction/smoke checks; Intel execution
+  was under Rosetta. The real local checksums drove a fresh Apple Silicon
+  Homebrew install/test/controlled revision-upgrade/test/uninstall lifecycle.
+  The temporary tap was removed; this is not a published-tap or fresh-machine test.
+- Before replacing the sole prototype install with explicit maintainer approval,
+  the candidate read and validated all 44 existing bits, including excluded
+  shelves, and checked shelf settings/tag rules, aliases, the ticket helper and
+  an archive-alias dry run. `validate` without a shelf includes every shelf;
+  unlike `list`, it has no `--all` flag. No store incompatibility was found.
+  The matching skill replaced the prototype copy; seven shelf-helper tests passed
+  after removing bare-array input support.
+- Unicode regressions probe filesystem normalization rather than infer it from
+  the OS. This local filesystem exercised collision refusal; byte-distinct
+  filesystem behavior remains covered by the conditional regression and the
+  native Linux CI gate, not claimed as locally executed evidence.
+
+The incomplete-discovery audit found no scope bug or reason to change semantics.
+`src/store.rs` excludes hidden entries, auxiliary shelf files, non-`.md` entries
+and nested content; recognized but unsafe/unsupported bit paths remain diagnostics.
+Existing regressions `auxiliary_files_are_ignored_and_preserved`,
+`discovered_ids_roundtrip_and_unsupported_entries_are_never_ids`,
+`non_utf8_filenames_are_diagnostics_in_all_output_modes`, and
+`partial_discovery_keeps_healthy_shelves_and_explicit_failures_are_clear`, together
+with symlink tests, passed. Incomplete scans still return healthy results with
+exit 1 and `complete: false`.
+
+Native Intel/Linux source and package runs, the Linux MSRV job, and a quarantined
+browser download have not been executed locally. Signing remains deferred;
+`spctl --assess` rejected the ad-hoc-signed candidate during preparation. No push,
+tag, workflow dispatch, release publication or website deployment was performed.
