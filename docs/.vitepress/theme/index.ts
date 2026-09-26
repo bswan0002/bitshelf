@@ -17,8 +17,8 @@ export default {
   extends: DefaultTheme,
   Layout: () => h(DefaultTheme.Layout, null, {
     'layout-top': () => h('div', { class: 'development-warning', role: 'note' }, [
-      h('span', { class: 'tag' }, 'Prototype'),
-      h('span', 'Early development. Use bitshelf only with disposable data.'),
+      h('span', { class: 'tag' }, 'Release candidate'),
+      h('span', '0.1.0 candidate. Back up your store before upgrading or running destructive commands.'),
     ]),
   }),
   enhanceApp({ app }) {

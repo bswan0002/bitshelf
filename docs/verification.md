@@ -91,3 +91,31 @@ checks; all seven shelf-helper tests passed.
 Native Intel/Linux and fresh-machine published-tap checks remain release gates.
 No push, tag, workflow dispatch or deployment occurred. Handoff retention was
 configured separately by the maintainer and was not modified by this work.
+
+
+## Prerelease audit blocker fixes
+
+Local macOS ARM64 verification of the working-tree fixes based on `8258db2`:
+
+- All **105 Rust tests** pass on 1.98.1 and MSRV 1.91.0. Regressions cover
+  attached values on value-less flags (including shell-install consent and
+  built-in alias templates), unchanged filesystem snapshots on rejection,
+  non-canonical integer rejection without rewriting the source, and BOM-prefixed
+  LF/CRLF frontmatter edits preserving metadata and exact body bytes.
+- Formatting, locked build and warnings-denied Clippy pass. Generated command
+  references have no drift. Clean npm install/documentation build, local Markdown
+  link checks, all 13 release/formula/tap script tests, workflow lint, and
+  regenerated dependency-notice checks pass.
+- Candidate banners now advise backups rather than disposable-only prototype
+  use. The README points to candidate docs instead of the stale live site.
+  **The live site has not been redeployed and remains a release gate.**
+
+The boolean-flag fix is a documented local patch to usage-argv 6.11.1; dependency
+notices and inventory have been regenerated. Binary, underscore-separated and
+leading-zero decimal integers must be rewritten in supported notation or quoted
+as strings before mutation. Quoted spellings are preserved.
+
+This pass does not claim new archive/Homebrew, native Intel/Linux, remote workflow
+or publication verification. Nonblocking audit findings remain outside this pass.
+No installed executable, real store, remote configuration, tag or deployment was
+changed.

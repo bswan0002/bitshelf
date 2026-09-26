@@ -4,22 +4,35 @@ pub type Mapping = serde_json::Map<String, serde_json::Value>;
 pub use serde_json::Value;
 
 /// Preflight uses the same maintained scanner as the Serde parser to reject
-/// explicit tags and integer overflow before either can be coerced.
+/// explicit tags, ambiguous integer spellings and overflow before coercion.
 pub fn parse(yaml: &str) -> Result<Value> {
     use granit_parser::{ScalarStyle, Scanner, StrInput, TokenType};
     for token in Scanner::new(StrInput::new(yaml)) {
         match token?.into_parts().1 {
             TokenType::Tag(..) => anyhow::bail!("explicit YAML tags are unsupported"),
             TokenType::Scalar(ScalarStyle::Plain, scalar) => {
-                let text = scalar.trim_start_matches(['+', '-']);
-                let (digits, radix) = if let Some(n) = text.strip_prefix("0x") {
+                let text = scalar.strip_prefix(['+', '-']).unwrap_or(&scalar);
+                let (digits, radix) = if let Some(n) =
+                    text.strip_prefix("0x").or_else(|| text.strip_prefix("0X"))
+                {
                     (n, 16)
-                } else if let Some(n) = text.strip_prefix("0o") {
+                } else if let Some(n) = text.strip_prefix("0o").or_else(|| text.strip_prefix("0O"))
+                {
                     (n, 8)
+                } else if let Some(n) = text.strip_prefix("0b").or_else(|| text.strip_prefix("0B"))
+                {
+                    (n, 2)
                 } else {
                     (text, 10)
                 };
-                if !digits.is_empty() && digits.chars().all(|c| c.is_digit(radix)) {
+                let compact = digits.replace('_', "");
+                if !compact.is_empty() && compact.chars().all(|c| c.is_digit(radix)) {
+                    ensure!(
+                        radix != 2
+                            && !digits.contains('_')
+                            && !(radix == 10 && digits.len() > 1 && digits.starts_with('0')),
+                        "non-canonical integer spelling; use decimal without leading zeros or separators, or quote it as a string"
+                    );
                     let value = u64::from_str_radix(digits, radix)
                         .map_err(|_| anyhow::anyhow!("integer outside i64/u64 range"))?;
                     ensure!(

@@ -2,7 +2,7 @@ THIRD-PARTY NOTICES
 
 Project bitshelf is MIT licensed; its LICENSE is separate.
 This file reproduces notices from exact locked dependency sources.
-The locally patched Demand source retains its upstream license; see vendor/README.md.
+Locally patched Demand and usage-argv sources retain their upstream licenses.
 
 ========================================================================
 annotate-snippets 0.12.16

@@ -2,7 +2,7 @@
 """Generate deterministic notices for the locked non-dev dependency graph.
 
 Includes build dependencies and all target branches conservatively. License texts
-come from the exact Cargo package sources, including the local Demand patch.
+come from the exact Cargo package sources, including local dependency patches.
 """
 import argparse
 import hashlib
@@ -28,7 +28,7 @@ def generate():
             identities.add((match[1], match[2]))
     seen = {identifier for identifier, package in packages.items() if (package['name'], package['version']) in identities}
     inventory = {'cargo_lock_sha256': hashlib.sha256((ROOT / 'Cargo.lock').read_bytes()).hexdigest(), 'scope': 'Non-dev graph, including build dependencies across supported release targets; may conservatively include code absent from a particular binary.', 'packages': []}
-    sections = ['THIRD-PARTY NOTICES\n\nProject bitshelf is MIT licensed; its LICENSE is separate.\nThis file reproduces notices from exact locked dependency sources.\nThe locally patched Demand source retains its upstream license; see vendor/README.md.\n']
+    sections = ['THIRD-PARTY NOTICES\n\nProject bitshelf is MIT licensed; its LICENSE is separate.\nThis file reproduces notices from exact locked dependency sources.\nLocally patched Demand and usage-argv sources retain their upstream licenses.\n']
     for package in sorted((packages[i] for i in seen if i != root), key=lambda p: (p['name'], p['version'])):
         directory = Path(package['manifest_path']).parent
         files = set()

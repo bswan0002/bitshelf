@@ -1,0 +1,34 @@
+[package]
+name = "usage-argv"
+description = "Zero-allocation argv parser for usage specs"
+version = "6.11.1"
+edition = "2021"
+rust-version = "1.91"
+homepage = { workspace = true }
+documentation = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+
+# No dependencies, and none are wanted. This crate is what runs on every
+# invocation of every CLI built on it.
+[dependencies]
+
+[features]
+default = ["help-advanced"]
+# Flattened subcommand pages and recursive help. Disable defaults for smaller CLIs.
+help-advanced = []
+# Cold-path metadata and spec emission. Off by default so a CLI that wants only
+# a parser does not carry it.
+spec = []
+# Splitting a command line for completion. Off by default for the same reason, and
+# separate from `spec` because a CLI can want one without the other: completion needs
+# to split a line whether or not the binary can also emit its own spec.
+complete = ["spec"]
+# What a user reads when a command line does not parse. Off by default like the rest: a CLI
+# that renders its own errors should not carry these strings, and the parser stays a parser.
+diagnostics = ["spec"]
+
+[package.metadata.release]
+shared-version = true
+release = true

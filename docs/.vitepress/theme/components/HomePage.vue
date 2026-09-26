@@ -97,10 +97,10 @@ const recipes = [
           </figure>
         </div>
       </div>
-      <p class="wrap prototype-note">
-        <strong>Prototype.</strong> Commands, configuration, and file formats may change without backward
-        compatibility, and bugs may cause data loss. Use disposable data. This site tracks <code>main</code>
-        and may describe unreleased work.
+      <p class="wrap release-note">
+        <strong>0.1.0 release candidate.</strong> Back up your store before upgrading or running destructive
+        commands. This site tracks <code>main</code> and may describe unreleased work; use the documentation
+        bundled with your release for its exact contract.
       </p>
     </section>
 
@@ -466,7 +466,7 @@ p {
   z-index: 1;
 }
 
-.prototype-note {
+.release-note {
   margin-top: 56px;
   margin-bottom: 0;
   padding-top: 18px !important;
@@ -477,10 +477,10 @@ p {
   max-width: var(--wrap);
 }
 
-.prototype-note strong { color: var(--bs-brick); font-weight: 600; }
+.release-note strong { color: var(--bs-brick); font-weight: 600; }
 
 @media (min-width: 768px) {
-  .prototype-note { padding-left: 40px; padding-right: 40px; }
+  .release-note { padding-left: 40px; padding-right: 40px; }
 }
 
 /* --- Windows ------------------------------------------------------------ */

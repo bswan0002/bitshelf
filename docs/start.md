@@ -1,6 +1,6 @@
 # Get started
 
-This walks through the core loop: keep something, find it from another context, and use or update it. It takes about five minutes. Use a disposable store while bitshelf is a prototype.
+This walks through the core loop: keep something, find it from another context, and use or update it. It takes about five minutes. This is the 0.1.0 release candidate. Back up your store before upgrading or running destructive commands; a temporary store is a good way to try this walkthrough.
 
 ## 1. Install and set up
 

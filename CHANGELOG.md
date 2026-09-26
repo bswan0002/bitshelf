@@ -2,6 +2,8 @@
 
 ## 0.1.0 — First public release candidate (not yet published)
 
+- Reject attached values on value-less flags (including `--yes=false`) with exit 2 before mutations. Recognize BOM-prefixed frontmatter without nesting it on edits. Reject ambiguous binary, leading-zero and underscore-separated integers rather than silently coercing metadata.
+
 - Store notes, snippets, prompts and handoffs as ordinary UTF-8 Markdown in self-contained shelves, with optional titles, tags, shelf-local requirements and guidance.
 - Search IDs, titles, tags and bodies with ranked AND/OR terms, phrases, exclusions and deterministic ordering. List IDs, exact paths or JSON; retrieve exact bodies with `show --body`.
 - Save through stdin/files or waiting editor drafts. Markdown is authoritative: add owns creation dates, edits compare only current source and candidate, plain moves preserve dates, and external edits leave date management to the author.

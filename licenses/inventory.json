@@ -1,5 +1,5 @@
 {
-  "cargo_lock_sha256": "d3ae0438b224281f2f20c2656687ead50ef33385b451770ff508b0cd3342a39c",
+  "cargo_lock_sha256": "c777feaba0a13b4f534497e0fb35764a14c3b9c133b81233bef873b866695e8e",
   "packages": [
     {
       "files": [
@@ -1008,7 +1008,7 @@
       "license": "MIT",
       "name": "usage-argv",
       "repository": "https://github.com/jdx/usage",
-      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "source": "local patched source",
       "version": "6.11.1"
     },
     {

@@ -10,7 +10,7 @@ Agents let us work on more things in parallel, and useful work now outlives the 
 
 Saving and retrieving are deliberate. This isn't automatic agent memory.
 
-**Documentation:** [bitshelf.benswanson.dev](https://bitshelf.benswanson.dev) · [Get started](docs/start.md) · [Recipes](docs/recipes/design-docs.md) · [Using with agents](docs/agents.md)
+**Candidate documentation:** [Get started](docs/start.md) · [Recipes](docs/recipes/design-docs.md) · [Using with agents](docs/agents.md)
 
 ## Quick start (from source)
 

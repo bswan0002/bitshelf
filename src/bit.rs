@@ -21,9 +21,13 @@ pub struct Bit {
     pub expires: Option<DateTime<Utc>>,
 }
 pub fn parse(raw: &str) -> Result<(Mapping, &str)> {
+    // Ignore a UTF-8 signature only for detecting frontmatter. Plain bodies
+    // (including a leading BOM) remain byte-for-byte unchanged.
+    let original = raw;
+    let raw = raw.strip_prefix('\u{feff}').unwrap_or(raw);
     let first = raw.find('\n').map(|i| &raw[..=i]);
     if !matches!(first, Some("---\n" | "---\r\n")) {
-        return Ok((Mapping::new(), raw));
+        return Ok((Mapping::new(), original));
     }
     let start = first.unwrap().len();
     let mut offset = start;

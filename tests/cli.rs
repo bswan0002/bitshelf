@@ -2203,12 +2203,22 @@ fn unknown_flags_are_usage_errors_before_any_store_changes() {
     fs::write(
         &f.config,
         format!(
-            "{config}\n[aliases]\nrecent = ['list']\narchive = ['move', '{{id}}', 'notes/dest']\n"
+            "{config}\n[aliases]\nrecent = ['list']\narchive = ['move', '{{id}}', 'notes/dest']\npreview = ['prune', '--dry-run=false']\n"
         ),
     )
     .unwrap();
     let before = snapshot(f._temp.path());
-    for flag in ["--bogus", "--jsno", "--bogus=x", "-z"] {
+    for flag in [
+        "--bogus",
+        "--jsno",
+        "--bogus=x",
+        "-z",
+        "--json=false",
+        "--json=",
+        "--json=garbage",
+        "--help=false",
+        "--version=false",
+    ] {
         for mut args in [
             vec!["init"],
             vec!["shelf", "list"],
@@ -2229,7 +2239,13 @@ fn unknown_flags_are_usage_errors_before_any_store_changes() {
             vec!["archive", "notes/source"],
         ] {
             args.push(flag);
-            let out = f.run(&args);
+            let out = f
+                .command(&args)
+                .env("HOME", f._temp.path())
+                .env("ZDOTDIR", f._temp.path())
+                .env("XDG_CONFIG_HOME", f._temp.path())
+                .output()
+                .unwrap();
             assert_eq!(out.status.code(), Some(2), "{args:?}: {:?}", out);
             assert!(out.stdout.is_empty(), "{args:?}");
             assert!(!String::from_utf8_lossy(&out.stderr).contains("create it with"));
@@ -2242,10 +2258,36 @@ fn unknown_flags_are_usage_errors_before_any_store_changes() {
     }
     for args in [
         vec!["validate", "--all"],
+        vec!["preview"],
+        vec!["--json=false", "recent"],
+        vec!["add", "notes/new", "--stdin=false"],
+        vec!["add", "notes/new", "--interactive=false"],
+        vec!["list", "--all=garbage"],
+        vec!["list", "--long=true"],
+        vec!["list", "--paths=false"],
+        vec!["list", "--null=false"],
+        vec!["list", "--reverse=false"],
+        vec!["search", "keep", "--any=false"],
+        vec!["show", "notes/source", "--body=false"],
+        vec!["open", "--pick=false"],
+        vec!["prune", "--dry-run=false"],
+        vec!["completion", "install", "--shell", "zsh", "--yes=false"],
+        vec!["archive", "notes/source", "--dry-run=false"],
         vec!["add", "--bogus/x", "--stdin"],
         vec!["search", "keep", "--shelf", "--bogus"],
     ] {
-        assert_eq!(f.run(&args).status.code(), Some(2), "{args:?}");
+        assert_eq!(
+            f.command(&args)
+                .env("HOME", f._temp.path())
+                .env("ZDOTDIR", f._temp.path())
+                .env("XDG_CONFIG_HOME", f._temp.path())
+                .output()
+                .unwrap()
+                .status
+                .code(),
+            Some(2),
+            "{args:?}"
+        );
         assert_eq!(snapshot(f._temp.path()), before);
     }
 }
@@ -2326,4 +2368,65 @@ fn validate_help_explains_all_shelves_and_maintenance_keeps_arrays() {
     let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert!(rows.is_array());
     assert_eq!(rows[0]["status"], "skipped");
+}
+
+#[test]
+fn noncanonical_integers_refuse_unrelated_edits_without_changing_bytes() {
+    let f = Fixture::new();
+    for value in [
+        "012",
+        "09007199254740993",
+        "-09007199254740993",
+        "1_000",
+        "1_000_000_000_000_000_000_000",
+        "0b101",
+        "+0b101",
+    ] {
+        let raw = format!("---\nx: {value}\n---\nbody\r\n");
+        f.write("notes/numeric", &raw);
+        let output = f.run(&["edit", "notes/numeric", "--set", "k=v"]);
+        assert_eq!(output.status.code(), Some(1), "{value}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("non-canonical integer"));
+        assert_eq!(
+            fs::read(f.bit_path("notes/numeric")).unwrap(),
+            raw.as_bytes()
+        );
+    }
+}
+
+#[test]
+fn bom_frontmatter_is_recognized_and_edits_do_not_nest_it() {
+    let f = Fixture::new();
+    for newline in ["\n", "\r\n"] {
+        let raw = format!(
+            "\u{feff}---{newline}title: Hello{newline}tags: [kept]{newline}expires: 2099-01-01T00:00:00Z{newline}---{newline}body\r\nno final newline"
+        );
+        f.write("notes/bom", &raw);
+        assert_eq!(f.ok(&["show", "notes/bom"]).stdout, raw.as_bytes());
+        assert_eq!(
+            f.ok(&["show", "notes/bom", "--body"]).stdout,
+            b"body\r\nno final newline"
+        );
+        f.ok(&["edit", "notes/bom", "--set", "k=v"]);
+        let rows = f.json(&["list", "notes", "--json"]);
+        assert_eq!(rows[0]["title"], "Hello");
+        assert_eq!(rows[0]["metadata"]["tags"][0], "kept");
+        assert_eq!(rows[0]["metadata"]["expires"], "2099-01-01T00:00:00Z");
+        assert_eq!(rows[0]["metadata"]["k"], "v");
+        assert_eq!(
+            f.ok(&["show", "notes/bom", "--body"]).stdout,
+            b"body\r\nno final newline"
+        );
+        assert!(
+            !fs::read_to_string(f.bit_path("notes/bom"))
+                .unwrap()
+                .contains('\u{feff}')
+        );
+    }
+    f.write("notes/plain-bom", "\u{feff}plain body");
+    f.ok(&["edit", "notes/plain-bom", "--set", "k=v"]);
+    assert_eq!(
+        f.ok(&["show", "notes/plain-bom", "--body"]).stdout,
+        "\u{feff}plain body".as_bytes()
+    );
 }
