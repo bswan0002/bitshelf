@@ -82,7 +82,10 @@ native-platform gates.
 Preparation is complete locally; public verification and publication remain open
 in ticket 27 by the maintainer's instruction. Local evidence is in
 [verification](docs/verification.md). No release tag, assets, tap or documentation
-site was published by this work. The installed prototype `bs` was preserved.
+site was published by this work. After explicit maintainer approval, the sole
+installed prototype `bs` and agent skill were replaced with this 0.1.0 candidate.
+The candidate read and validated the real store before replacement; old state
+files are ignored, and the local ticket helper now requires collection envelopes.
 
 Read-only inspection during preparation found only the `github-pages`
 environment, no repository-level variables/secrets, and no accessible
