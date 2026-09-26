@@ -238,18 +238,15 @@ fn candidates(
                 result.push(usage::complete::Candidate::new(s.name.clone()));
             }
             if bits && (!shelves || ctx.prefix.contains('/')) {
-                for e in std::fs::read_dir(store.bits_path(&s.name)?)? {
-                    let e = e?;
-                    let p = e.path();
-                    if e.file_type()?.is_file()
-                        && p.extension().is_some_and(|e| e == "md")
-                        && !e.file_name().to_string_lossy().starts_with('.')
-                    {
-                        result.push(usage::complete::Candidate::new(format!(
-                            "{}/{}",
-                            s.name,
-                            p.file_stem().unwrap().to_string_lossy()
-                        )));
+                let Ok(entries) = std::fs::read_dir(store.bits_path(&s.name)?) else {
+                    continue;
+                };
+                for e in entries.flatten() {
+                    let path = e.path();
+                    if e.file_type().is_ok_and(|t| t.is_file()) && store.safe(&path).is_ok() {
+                        if let Ok(id) = crate::identity::discovered(&s.name, &path) {
+                            result.push(usage::complete::Candidate::new(id));
+                        }
                     }
                 }
             }

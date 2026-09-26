@@ -51,6 +51,7 @@ pub struct Shelf {
 #[derive(Serialize)]
 pub struct Validation {
     pub id: Option<String>,
+    #[serde(serialize_with = "diagnostic_path")]
     pub path: PathBuf,
     pub errors: Vec<String>,
     pub valid: bool,
@@ -296,10 +297,13 @@ impl Store {
                 results.push(Validation::failure(path, error));
                 continue;
             }
-            let name = path
-                .file_name()
-                .context("shelf has no name")?
-                .to_string_lossy();
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(name) if config::name(name).is_ok() => name,
+                _ => {
+                    results.push(Validation::failure(path, "unsupported shelf name"));
+                    continue;
+                }
+            };
             let mut blocked = false;
             for field in ["bits", "bs.toml", "SHELF.md"] {
                 let managed = path.join(field);
@@ -345,7 +349,13 @@ impl Store {
                 {
                     continue;
                 }
-                let id = format!("{name}/{}", path.file_stem().unwrap().to_string_lossy());
+                let id = match crate::identity::discovered(name, &path) {
+                    Ok(id) => id,
+                    Err(error) => {
+                        results.push(Validation::failure(path, error));
+                        continue;
+                    }
+                };
                 let errors = if let Err(error) = self.safe(&path) {
                     vec![error.to_string()]
                 } else if entry.file_type()?.is_file() {
@@ -354,7 +364,7 @@ impl Store {
                         Err(error) => vec![error.to_string()],
                     }
                 } else {
-                    continue;
+                    vec!["not a regular .md file".into()]
                 };
                 results.push(Validation::new(Some(id), path, errors));
             }
@@ -366,4 +376,11 @@ impl Store {
         crate::filesystem::publish(&path, raw.as_bytes(), None, None)?;
         Ok(path)
     }
+}
+
+fn diagnostic_path<S: serde::Serializer>(
+    path: &Path,
+    s: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    s.serialize_str(&path.to_string_lossy())
 }

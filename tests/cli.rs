@@ -1504,7 +1504,7 @@ fn closed_output_pipes_exit_quietly() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn path_output_preserves_non_utf8_filenames() {
+fn non_utf8_filenames_are_diagnostics_in_all_output_modes() {
     use std::os::unix::ffi::OsStringExt;
     let f = Fixture::new();
     let path = f
@@ -1512,9 +1512,27 @@ fn path_output_preserves_non_utf8_filenames() {
         .join("notes/bits")
         .join(std::ffi::OsString::from_vec(b"odd-\xff.md".to_vec()));
     fs::write(&path, "body").unwrap();
-    let mut expected = path.as_os_str().as_encoded_bytes().to_vec();
-    expected.push(0);
-    assert_eq!(f.ok(&["list", "--paths", "--null"]).stdout, expected);
+    for args in [
+        vec!["list", "--paths", "--null"],
+        vec!["list", "--json"],
+        vec!["validate", "--json"],
+    ] {
+        let out = f.run(&args);
+        assert_eq!(out.status.code(), Some(1));
+        if args.contains(&"--json") {
+            let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+            if args[0] == "list" {
+                assert_eq!(value["complete"], false);
+                assert_eq!(value["results"], serde_json::json!([]));
+            } else {
+                assert!(value[0]["id"].is_null());
+                assert_eq!(value[0]["valid"], false);
+            }
+        } else {
+            assert!(out.stdout.is_empty());
+        }
+    }
+    assert!(path.is_file());
 }
 
 #[cfg(target_os = "linux")]
@@ -1840,4 +1858,48 @@ fn partial_discovery_keeps_healthy_shelves_and_explicit_failures_are_clear() {
             .len(),
         2
     );
+}
+
+#[test]
+fn discovered_ids_roundtrip_and_unsupported_entries_are_never_ids() {
+    let f = Fixture::new();
+    for name in ["a space", "a.b", "-leading", "résumé", "Case"] {
+        let id = format!("notes/{name}");
+        f.ok(&["add", &id]);
+        f.ok(&["show", &id]);
+        f.ok(&["edit", &id, &format!("--title={name}")]);
+    }
+    let rows = f.json(&["list", "--json"]);
+    for row in rows.as_array().unwrap() {
+        f.ok(&["show", row["id"].as_str().unwrap()]);
+    }
+    for name in ["bad\nline", "bad\\slash", "bad\ttab", "extra.md"] {
+        f.write(&format!("notes/{name}"), "body");
+    }
+    fs::create_dir(f.bit_path("notes/directory")).unwrap();
+    f.write("notes/.hidden", "hidden");
+    let out = f.run(&["list", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(value["results"].as_array().unwrap().len(), 5);
+    assert_eq!(value["errors"].as_array().unwrap().len(), 5);
+    let out = f.run(&["validate", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["valid"] == false)
+            .count(),
+        5
+    );
+    let out = f.run(&["move", "notes/Case", "notes/case"]);
+    if f.bit_path("notes/Case").exists() {
+        assert!(!out.status.success());
+    } else {
+        assert!(out.status.success());
+        f.ok(&["show", "notes/case"]);
+    }
 }
