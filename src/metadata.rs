@@ -180,8 +180,14 @@ impl Mutation {
                 !key.trim().is_empty() && !key.chars().any(char::is_control) && key != "<<",
                 "invalid metadata key"
             );
+            // Removing an invalid reserved value is the non-editor repair path;
+            // valid dates stay managed automatically.
+            let repair = self.unset.contains(key)
+                && map
+                    .get(key)
+                    .is_some_and(|v| crate::bit::timestamp(v).is_none());
             ensure!(
-                !["created", "updated"].contains(&key.as_str()),
+                !["created", "updated"].contains(&key.as_str()) || repair,
                 "{key} is reserved and managed automatically"
             );
             ensure!(

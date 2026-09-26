@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use std::fs;
 
 pub fn run(store: &Store, args: Move) -> Result<Value> {
-    let source = store.bit_path(&args.id)?;
+    let source = store.existing_bit(&args.id)?;
     let (_, name) = args.id.split_once('/').unwrap();
     let id = if args.destination.contains('/') {
         args.destination.clone()

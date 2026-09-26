@@ -22,6 +22,7 @@ serde_json = "1"
 shell-words = "1"
 tempfile = "3"
 toml = "0.9"
+toml_edit = { version = "0.23", default-features = false, features = ["parse", "display"] }
 usage = { package = "usage-rs", version = "=6.11.1", features = ["completions"] }
 
 [patch.crates-io]

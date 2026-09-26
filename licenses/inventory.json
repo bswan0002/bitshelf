@@ -1,5 +1,5 @@
 {
-  "cargo_lock_sha256": "c777feaba0a13b4f534497e0fb35764a14c3b9c133b81233bef873b866695e8e",
+  "cargo_lock_sha256": "85d58b6851867393df5562d26f0041c91c2c18aeb797648278bf909e9fd49f68",
   "packages": [
     {
       "files": [
@@ -277,6 +277,23 @@
         },
         {
           "path": "LICENSE-MIT",
+          "sha256": "7365cc8878a1d7ce155a58c4ca09c3d7a6be413efa5334a80ea842912b669349"
+        }
+      ],
+      "license": "Apache-2.0 OR MIT",
+      "name": "equivalent",
+      "repository": "https://github.com/indexmap-rs/equivalent",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.2"
+    },
+    {
+      "files": [
+        {
+          "path": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "LICENSE-MIT",
           "sha256": "8764a597675778ddfd4e25f81b08a05dbcf089ac05662df7613fe67f150e3aa2"
         }
       ],
@@ -350,6 +367,23 @@
       "files": [
         {
           "path": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "LICENSE-MIT",
+          "sha256": "ff8f68cb076caf8cefe7a6430d4ac086ce6af2ca8ce2c4e5a2004d4552ef52a2"
+        }
+      ],
+      "license": "MIT OR Apache-2.0",
+      "name": "hashbrown",
+      "repository": "https://github.com/rust-lang/hashbrown",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.17.1"
+    },
+    {
+      "files": [
+        {
+          "path": "LICENSE-APACHE",
           "sha256": "696759d65dfe558ff7d9f031c76db19ec5c0767470fb67c4e8d990820d1e99c9"
         },
         {
@@ -362,6 +396,23 @@
       "repository": "https://github.com/strawlab/iana-time-zone",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "0.1.65"
+    },
+    {
+      "files": [
+        {
+          "path": "LICENSE-APACHE",
+          "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+        },
+        {
+          "path": "LICENSE-MIT",
+          "sha256": "ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055"
+        }
+      ],
+      "license": "Apache-2.0 OR MIT",
+      "name": "indexmap",
+      "repository": "https://github.com/indexmap-rs/indexmap",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "2.14.2"
     },
     {
       "files": [
@@ -917,6 +968,23 @@
       "repository": "https://github.com/toml-rs/toml",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "0.7.5+spec-1.1.0"
+    },
+    {
+      "files": [
+        {
+          "path": "LICENSE-APACHE",
+          "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+        },
+        {
+          "path": "LICENSE-MIT",
+          "sha256": "6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6"
+        }
+      ],
+      "license": "MIT OR Apache-2.0",
+      "name": "toml_edit",
+      "repository": "https://github.com/toml-rs/toml",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.23.10+spec-1.0.0"
     },
     {
       "files": [

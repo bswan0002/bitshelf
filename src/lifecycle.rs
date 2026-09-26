@@ -23,10 +23,17 @@ pub fn finalize(
         if let Some(value) = after.get(key) {
             ensure!(
                 bit::timestamp(value).is_some(),
-                "invalid reserved field {key}; repair or remove it explicitly"
+                "invalid reserved field {key}; remove it with bs edit ID --unset {key}, or fix it in an editor"
             );
         }
     }
+    // Removing an invalid reserved date is a real change even if nothing else is.
+    let repaired = ["created", "updated"].iter().any(|key| {
+        before
+            .get(*key)
+            .is_some_and(|v| bit::timestamp(v).is_none())
+            && !after.contains_key(*key)
+    });
     let previous_updated = before.get("updated").and_then(bit::timestamp);
     let explicit_updated = editor && before.get("updated") != after.get("updated");
     before.remove("created");
@@ -34,7 +41,7 @@ pub fn finalize(
     let mut user_after = after.clone();
     user_after.remove("created");
     user_after.remove("updated");
-    let changed = before != user_after || old_body != body;
+    let changed = before != user_after || old_body != body || repaired;
     if changed && !explicit_updated && previous_updated.is_none_or(|old| now > old) {
         after.insert(
             "updated".into(),
@@ -82,8 +89,9 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         !(interactive && json),
         "bs edit --json requires --file, --stdin, --title, --tags, --set, --set-json or --unset (no editor)",
     )?;
-    let path = store.bit_path(&args.id)?;
-    let original = fs::read_to_string(&path)?;
+    let path = store.existing_bit(&args.id)?;
+    let original =
+        fs::read_to_string(&path).with_context(|| format!("cannot read bit {}", args.id))?;
     let mut draft = None;
     let candidate = if interactive {
         let mut file = tempfile::Builder::new()
@@ -211,9 +219,17 @@ mod tests {
         }
         let bad = "---\nupdated: bad\n---\nbody";
         assert!(finalize(bad, &format!("{bad}more"), now(), false).is_err());
+        // Removing the invalid date in an editor is a repair, not a no-op.
         assert_eq!(
             finalize(bad, "body", now(), true).unwrap(),
-            ("body".into(), false)
+            ("body".into(), true)
+        );
+        let (repaired, changed) = finalize(bad, "body", now(), false).unwrap();
+        assert!(changed);
+        assert!(
+            bit::parse(&repaired).unwrap().0["updated"]
+                .as_str()
+                .is_some_and(|s| s.starts_with("2026-01-01"))
         );
     }
     #[test]

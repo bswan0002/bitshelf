@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ShelfConfig {
     /// Participate in default discovery; explicit access is always available.
@@ -19,7 +19,7 @@ pub struct ShelfConfig {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tag_rules: BTreeMap<String, TagRule>,
 }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TagRule {
     #[serde(default)]
@@ -102,6 +102,8 @@ impl ShelfConfig {
             .with_context(|| format!("invalid shelf configuration {}", path.display()))?;
         Ok(cfg)
     }
+    /// Write settings. An existing file is edited in place so comments and
+    /// layout survive; unchanged settings leave the file untouched.
     pub fn save(&self, path: &Path) -> Result<()> {
         self.validate()?;
         let before = match fs::read(path) {
@@ -109,13 +111,74 @@ impl ShelfConfig {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
             Err(e) => return Err(e.into()),
         };
-        crate::filesystem::publish(
-            path,
-            toml::to_string_pretty(self)?.as_bytes(),
-            before.as_deref(),
-            None,
-        )?;
+        let text = match &before {
+            None => toml::to_string_pretty(self)?,
+            Some(bytes) => match self.edit(std::str::from_utf8(bytes)?, path)? {
+                Some(text) => text,
+                None => return Ok(()),
+            },
+        };
+        crate::filesystem::publish(path, text.as_bytes(), before.as_deref(), None)?;
         Ok(())
+    }
+    /// None means the existing document already has exactly these settings.
+    fn edit(&self, text: &str, path: &Path) -> Result<Option<String>> {
+        let current: Self = toml::from_str(text)
+            .with_context(|| format!("malformed shelf configuration {}", path.display()))?;
+        if &current == self {
+            return Ok(None);
+        }
+        if current.tag_rules != self.tag_rules {
+            return Ok(Some(toml::to_string_pretty(self)?));
+        }
+        let mut doc: toml_edit::DocumentMut = text
+            .parse()
+            .with_context(|| format!("malformed shelf configuration {}", path.display()))?;
+        fn set(doc: &mut toml_edit::DocumentMut, key: &str, value: Option<toml_edit::Value>) {
+            match value {
+                None => {
+                    doc.remove(key);
+                }
+                Some(mut value) => {
+                    // Replace only the value so the key's own decoration
+                    // (including leading comments) and inline comments survive.
+                    match doc.get_mut(key).and_then(|item| item.as_value_mut()) {
+                        Some(old) => {
+                            *value.decor_mut() = old.decor().clone();
+                            *old = value;
+                        }
+                        None => {
+                            doc.insert(key, toml_edit::Item::Value(value));
+                        }
+                    }
+                }
+            }
+        }
+        let unchanged_default = |present: bool, default: bool| !present && default;
+        if !unchanged_default(doc.contains_key("discoverable"), self.discoverable) {
+            set(&mut doc, "discoverable", Some(self.discoverable.into()));
+        }
+        set(
+            &mut doc,
+            "description",
+            self.description.clone().map(Into::into),
+        );
+        if !unchanged_default(doc.contains_key("required"), self.required.is_empty()) {
+            let required: toml_edit::Array = self.required.iter().cloned().collect();
+            set(&mut doc, "required", Some(required.into()));
+        }
+        set(
+            &mut doc,
+            "retention",
+            self.retention.clone().map(Into::into),
+        );
+        let text = doc.to_string();
+        ensure!(
+            &toml::from_str::<Self>(&text)? == self,
+            "could not update {} in place",
+            path.display()
+        );
+        Ok(Some(text))
     }
 }
 fn deserialize_editor<'de, D>(deserializer: D) -> std::result::Result<Option<Vec<String>>, D::Error>
@@ -144,13 +207,19 @@ pub fn name(s: &str) -> Result<()> {
     crate::identity::name(s)
 }
 
+/// About 100 years; longer periods are indistinguishable from permanent.
+pub const MAX_RETENTION_DAYS: i64 = 36_500;
 pub fn retention(s: &str) -> Result<chrono::Duration> {
-    let days: i64 = s
+    let digits = s
         .strip_suffix('d')
-        .context("retention must be positive whole days, e.g. 14d")?
-        .parse()
-        .context("invalid retention duration")?;
+        .filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+        .context("retention must be positive whole days, e.g. 14d")?;
+    let days: i64 = digits.parse().context("retention duration is too large")?;
     ensure!(days > 0, "retention must be positive");
+    ensure!(
+        days <= MAX_RETENTION_DAYS,
+        "retention must be at most {MAX_RETENTION_DAYS}d"
+    );
     chrono::Duration::try_days(days).context("retention duration is too large")
 }
 pub fn resolve(p: &Path, base: &Path) -> Result<PathBuf> {
@@ -170,9 +239,10 @@ pub fn config_path(p: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = p {
         return resolve(p, &cwd);
     }
-    let root = match env::var_os("XDG_CONFIG_HOME") {
-        Some(v) => resolve(Path::new(&v), &cwd)?,
-        None => resolve(Path::new("~/.config"), &cwd)?,
+    // The XDG base directory specification ignores empty and relative values.
+    let root = match env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {
+        Some(v) if v.is_absolute() => v,
+        _ => resolve(Path::new("~/.config"), &cwd)?,
     };
     Ok(root.join("bitshelf/config.toml"))
 }

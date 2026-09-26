@@ -331,12 +331,26 @@ fn verbatim_workflow_and_collision() {
         serde_json::json!([])
     );
     assert_eq!(
-        f.run(&["add", "notes/exact-prompt", "--title", "Exact Prompt"])
-            .status
-            .code(),
+        f.run(&[
+            "add",
+            "--file",
+            "/dev/null",
+            "notes/exact-prompt",
+            "--title",
+            "Exact Prompt"
+        ])
+        .status
+        .code(),
         Some(1)
     );
-    f.ok(&["add", "notes/another", "--title", "Exact Prompt"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/another",
+        "--title",
+        "Exact Prompt",
+    ]);
     f.ok(&["validate", "--json"]);
 }
 #[test]
@@ -391,11 +405,27 @@ fn guidance_requirements_and_missing_shelves() {
     assert_eq!(f.json(&["list", "ui", "--json"]), serde_json::json!([]));
     f.ok(&["validate", "ui"]);
     assert!(
-        !f.run(&["add", "ui/missing-tags", "--title", "Missing tags"])
-            .status
-            .success()
+        !f.run(&[
+            "add",
+            "--file",
+            "/dev/null",
+            "ui/missing-tags",
+            "--title",
+            "Missing tags"
+        ])
+        .status
+        .success()
     );
-    f.ok(&["add", "ui/valid", "--title", "Valid", "--tags", "react"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "ui/valid",
+        "--title",
+        "Valid",
+        "--tags",
+        "react",
+    ]);
     fs::remove_dir_all(f.root.join("ui/bits")).unwrap();
     assert!(
         f.json(&["shelf", "list", "--json"])
@@ -444,7 +474,7 @@ fn expiration_is_opt_in_explicit_and_safe() {
     ] {
         assert!(f.bit_path(p).exists());
     }
-    f.ok(&["add", "tmp/new", "--title", "New"]);
+    f.ok(&["add", "--file", "/dev/null", "tmp/new", "--title", "New"]);
     let envelope: Value =
         serde_json::from_slice(&f.run(&["list", "tmp", "--json"]).stdout).unwrap();
     let rows = &envelope["results"];
@@ -472,9 +502,16 @@ fn usage_errors_and_config_errors_have_distinct_statuses() {
         assert_eq!(f.run(&args).status.code(), Some(2), "{args:?}");
     }
     assert_eq!(
-        f.run(&["add", "notes/../evil", "--title", "escape"])
-            .status
-            .code(),
+        f.run(&[
+            "add",
+            "--file",
+            "/dev/null",
+            "notes/../evil",
+            "--title",
+            "escape"
+        ])
+        .status
+        .code(),
         Some(1)
     );
     assert_eq!(f.run(&["show", "notes/../config"]).status.code(), Some(1));
@@ -504,7 +541,7 @@ fn refuses_symlink_writes_reads_and_pruning() {
     .unwrap();
     symlink(external.path(), f.root.join("escape")).unwrap();
     assert!(
-        !f.run(&["add", "escape/bad", "--title", "Bad"])
+        !f.run(&["add", "--file", "/dev/null", "escape/bad", "--title", "Bad"])
             .status
             .success()
     );
@@ -587,7 +624,14 @@ fn dynamic_completion_uses_current_store_and_override() {
 #[test]
 fn edit_manages_command_local_timestamps_and_preserve_body() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/tracked", "--title", "Tracked"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/tracked",
+        "--title",
+        "Tracked",
+    ]);
     let path = f.root.join("notes/bits/tracked.md");
     let before = fs::read_to_string(&path).unwrap();
     let metadata = |raw: &str| -> serde_json::Value {
@@ -677,7 +721,14 @@ fn chronological_sort_and_updated_validation() {
 #[test]
 fn editor_edit_waits_and_preserves_drafts_on_failure() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/edit-me", "--title", "Edit me"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/edit-me",
+        "--title",
+        "Edit me",
+    ]);
     let path = f.root.join("notes/bits/edit-me.md");
     let initial = fs::read_to_string(&path).unwrap();
     let script = f._temp.path().join("editor.sh");
@@ -717,7 +768,14 @@ fn editor_edit_waits_and_preserves_drafts_on_failure() {
 #[test]
 fn invalid_edit_preserves_bytes_and_ignores_prototype_state() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/safe", "--title", "Safe"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/safe",
+        "--title",
+        "Safe",
+    ]);
     let path = f.bit_path("notes/safe");
     let raw = fs::read(&path).unwrap();
     assert!(
@@ -791,7 +849,14 @@ fn stdin_edit_preserves_unknown_metadata_expiration_and_reserved_dates() {
 #[test]
 fn concurrent_direct_edits_are_not_overwritten_and_corrupt_state_is_not_discarded() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/concurrent", "--title", "Concurrent"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/concurrent",
+        "--title",
+        "Concurrent",
+    ]);
     let path = f.root.join("notes/bits/concurrent.md");
     let script = f._temp.path().join("editor.sh");
     fs::write(
@@ -844,9 +909,16 @@ fn lifecycle_refuses_symlinked_bits_and_internal_state() {
     symlink(&state_dir, f.root.join(".bitshelf")).unwrap();
     assert!(!f.run(&["sync", "--json"]).status.success());
     assert!(
-        !f.run(&["add", "notes/unsafe", "--title", "Unsafe"])
-            .status
-            .success()
+        !f.run(&[
+            "add",
+            "--file",
+            "/dev/null",
+            "notes/unsafe",
+            "--title",
+            "Unsafe"
+        ])
+        .status
+        .success()
     );
     assert!(!f.root.join("notes/bits/unsafe.md").exists());
     assert_eq!(fs::read_dir(state_dir).unwrap().count(), 0);
@@ -882,12 +954,21 @@ fn shelf_local_configuration_and_storage_are_portable() {
     );
     assert_eq!(context["path"], f.root.join("renamed").to_str().unwrap());
     assert!(
-        !f.run(&["add", "renamed/no-tags", "--title", "No tags"])
-            .status
-            .success()
+        !f.run(&[
+            "add",
+            "--file",
+            "/dev/null",
+            "renamed/no-tags",
+            "--title",
+            "No tags"
+        ])
+        .status
+        .success()
     );
     f.ok(&[
         "add",
+        "--file",
+        "/dev/null",
         "renamed/tagged",
         "--title",
         "Tagged",
@@ -1002,7 +1083,7 @@ fn refuses_symlinked_bits_directories_and_shelf_configs() {
     symlink(external.path(), f.root.join("notes/bits")).unwrap();
     for args in [
         vec!["list"],
-        vec!["add", "notes/bad", "--title", "Bad"],
+        vec!["add", "--file", "/dev/null", "notes/bad", "--title", "Bad"],
         vec!["shelf", "add", "notes"],
     ] {
         assert!(!f.run(&args).status.success());
@@ -1032,10 +1113,17 @@ fn refuses_symlinked_bits_directories_and_shelf_configs() {
 #[test]
 fn editor_does_not_hold_store_lock() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/editing", "--title", "Editing"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/editing",
+        "--title",
+        "Editing",
+    ]);
     let script = f._temp.path().join("editor.sh");
     fs::write(&script, format!(
-        "set -eu\n'{}' --config '{}' add notes/parallel --title Parallel\nprintf '\\neditor content' >> \"$1\"\n",
+        "set -eu\n'{}' --config '{}' add notes/parallel --title Parallel --file /dev/null\nprintf '\\neditor content' >> \"$1\"\n",
         env!("CARGO_BIN_EXE_bs"), f.config.display(),
     )).unwrap();
     fs::write(
@@ -1136,7 +1224,14 @@ fn explicit_symlink_store_root_is_supported() {
         format!("store = '{}'\neditor = ['true']\n", root_link.display()),
     )
     .unwrap();
-    f.ok(&["add", "notes/safe", "--title", "Safe"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/safe",
+        "--title",
+        "Safe",
+    ]);
     f.ok(&["edit", "notes/safe", "--title", "Updated"]);
     f.ok(&["validate"]);
 }
@@ -1290,7 +1385,7 @@ allowed = ["bitshelf", "switchboard"]
 #[test]
 fn id_first_creation_and_optional_titles() {
     let f = Fixture::new();
-    let out = f.ok(&["add", "notes/My readable.name"]);
+    let out = f.ok(&["add", "--file", "/dev/null", "notes/My readable.name"]);
     assert_eq!(out.stdout, b"notes/My readable.name\n");
     let bit = &f.json(&["list", "--json"])[0];
     assert_eq!(bit["id"], "notes/My readable.name");
@@ -1298,31 +1393,49 @@ fn id_first_creation_and_optional_titles() {
     assert!(bit["metadata"].get("title").is_none());
     f.ok(&["validate"]);
     assert_eq!(
-        f.run(&["add", "notes/My readable.name"]).status.code(),
+        f.run(&["add", "--file", "/dev/null", "notes/My readable.name"])
+            .status
+            .code(),
         Some(1)
     );
     assert!(
-        !f.run(&["add", "notes/blank", "--title", " "])
+        !f.run(&["add", "--file", "/dev/null", "notes/blank", "--title", " "])
             .status
             .success()
     );
     assert!(!f.bit_path("notes/blank").exists());
     assert!(
-        !f.run(&["add", "notes", "--title", "No generated name"])
-            .status
-            .success()
+        !f.run(&[
+            "add",
+            "--file",
+            "/dev/null",
+            "notes",
+            "--title",
+            "No generated name"
+        ])
+        .status
+        .success()
     );
     assert_eq!(
-        f.run(&["add", "notes/x", "--slug", "y"]).status.code(),
+        f.run(&["add", "--file", "/dev/null", "notes/x", "--slug", "y"])
+            .status
+            .code(),
         Some(2)
     );
 
     f.ok(&["shelf", "add", "titled", "--required", "title"]);
-    let missing = f.run(&["add", "titled/required"]);
+    let missing = f.run(&["add", "--file", "/dev/null", "titled/required"]);
     assert_eq!(missing.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&missing.stderr).contains("missing required field: title"));
     assert!(!f.bit_path("titled/required").exists());
-    f.ok(&["add", "titled/required", "--title", "Optional globally"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "titled/required",
+        "--title",
+        "Optional globally",
+    ]);
     assert_eq!(
         f.json(&["list", "titled", "--json"])[0]["title"],
         "Optional globally"
@@ -1337,8 +1450,15 @@ fn id_first_creation_and_optional_titles() {
 #[test]
 fn list_and_search_output_modes() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/a space"]);
-    f.ok(&["add", "notes/b", "--title", "Description"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/a space"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/b",
+        "--title",
+        "Description",
+    ]);
     for base in [vec!["list"], vec!["search", "notes/"]] {
         let run = |flags: &[&str]| {
             let mut args = base.clone();
@@ -1590,8 +1710,8 @@ fn move_preserves_body_dates_without_history() {
 #[test]
 fn move_failures_preserve_source_and_destination() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/a"]);
-    f.ok(&["add", "notes/b"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/a"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/b"]);
     f.ok(&["shelf", "add", "strict", "--required", "title"]);
     let before = fs::read(f.bit_path("notes/a")).unwrap();
     let existing = fs::read(f.bit_path("notes/b")).unwrap();
@@ -1620,8 +1740,8 @@ fn excluded_shelves_are_explicitly_accessible_and_still_maintained() {
     let f = Fixture::new();
     f.ok(&["shelf", "add", "archive"]);
     fs::write(f.root.join("archive/bs.toml"), "discoverable = false\n").unwrap();
-    f.ok(&["add", "notes/active"]);
-    f.ok(&["add", "archive/inactive"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/active"]);
+    f.ok(&["add", "--file", "/dev/null", "archive/inactive"]);
     assert_eq!(f.json(&["list", "--json"]).as_array().unwrap().len(), 1);
     assert_eq!(
         f.json(&["search", "inactive", "--json"]),
@@ -1673,7 +1793,7 @@ fn archive_is_an_argv_alias_not_a_special_command() {
     config.push_str("\n[aliases]\narchive = ['move', '{id}', 'archive/{shelf}.{name}', '--set', 'moved_from={id}']\n");
     fs::write(&f.config, config).unwrap();
     let id = "notes/a b.$(touch NEVER)";
-    f.ok(&["add", id]);
+    f.ok(&["add", "--file", "/dev/null", id]);
     assert!(f.json(&["aliases", "--json"])["archive"].is_array());
     f.ok(&["archive", "--help"]);
     assert_eq!(
@@ -1734,7 +1854,7 @@ fn alias_configuration_rejects_unsafe_or_ambiguous_definitions() {
 fn move_refuses_symlinks_and_preserves_permissions() {
     use std::os::unix::{fs::PermissionsExt, fs::symlink};
     let f = Fixture::new();
-    f.ok(&["add", "notes/a"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/a"]);
     symlink(f.bit_path("notes/a"), f.bit_path("notes/link")).unwrap();
     assert!(!f.run(&["move", "notes/a", "notes/link"]).status.success());
     assert!(!f.run(&["move", "notes/link", "notes/b"]).status.success());
@@ -1758,7 +1878,7 @@ fn plain_aliases_forward_arguments_and_preserve_exit_status() {
         "\n[aliases]\nrecent = ['list', '--sort', 'updated', '--reverse']\nfind = ['search']\n",
     );
     fs::write(&f.config, config).unwrap();
-    f.ok(&["add", "notes/a", "--tags", "topic"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/a", "--tags", "topic"]);
     assert_eq!(f.json(&["recent", "--json"])[0]["id"], "notes/a");
     assert_eq!(
         f.json(&["recent", "notes", "--tag", "topic", "--json"])[0]["id"],
@@ -1796,7 +1916,7 @@ fn move_preserves_expiration_and_excluded_shelves_are_still_pruned() {
     );
     f.ok(&["prune"]);
     assert!(!f.bit_path("cold/expired").exists());
-    f.ok(&["add", "notes/permanent"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/permanent"]);
     f.ok(&["move", "notes/permanent", "cold"]);
     assert!(
         f.json(&["list", "cold", "--json"])[0]["metadata"]
@@ -1808,7 +1928,7 @@ fn move_preserves_expiration_and_excluded_shelves_are_still_pruned() {
 #[test]
 fn move_respects_lock_corrupt_state_and_destination_tag_rules() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/a"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/a"]);
     f.ok(&["shelf", "add", "strict"]);
     fs::write(
         f.root.join("strict/bs.toml"),
@@ -1825,7 +1945,7 @@ fn move_respects_lock_corrupt_state_and_destination_tag_rules() {
 #[test]
 fn partial_discovery_keeps_healthy_shelves_and_explicit_failures_are_clear() {
     let f = Fixture::new();
-    f.ok(&["add", "notes/healthy"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/healthy"]);
     for name in ["bad", "missing"] {
         f.ok(&["shelf", "add", name]);
     }
@@ -1865,7 +1985,7 @@ fn discovered_ids_roundtrip_and_unsupported_entries_are_never_ids() {
     let f = Fixture::new();
     for name in ["a space", "a.b", "-leading", "résumé", "Case"] {
         let id = format!("notes/{name}");
-        f.ok(&["add", &id]);
+        f.ok(&["add", "--file", "/dev/null", &id]);
         f.ok(&["show", &id]);
         f.ok(&["edit", &id, &format!("--title={name}")]);
     }
@@ -1924,15 +2044,15 @@ fn unicode_normalization_preserves_ids_or_refuses_filesystem_collisions() {
         f.ok(&["shelf", "add", &shelf]);
         let first = format!("{shelf}/{first}");
         let second = format!("{shelf}/{second}");
-        f.ok(&["add", &first, "--title", "original"]);
+        f.ok(&["add", "--file", "/dev/null", &first, "--title", "original"]);
         let original = fs::read(f.bit_path(&first)).unwrap();
-        let save = f.run(&["add", &second, "--title", "other"]);
+        let save = f.run(&["add", "--file", "/dev/null", &second, "--title", "other"]);
         if equivalent {
             assert_eq!(save.status.code(), Some(1));
             assert_eq!(fs::read(f.bit_path(&first)).unwrap(), original);
             assert_eq!(f.run(&["move", &first, &second]).status.code(), Some(1));
             let source = format!("{shelf}/source");
-            f.ok(&["add", &source]);
+            f.ok(&["add", "--file", "/dev/null", &source]);
             let source_bytes = fs::read(f.bit_path(&source)).unwrap();
             assert_eq!(f.run(&["move", &source, &second]).status.code(), Some(1));
             assert_eq!(fs::read(f.bit_path(&source)).unwrap(), source_bytes);
@@ -1982,6 +2102,8 @@ fn shared_metadata_mutations_are_atomic_typed_and_destination_validated() {
     }
     f.ok(&[
         "add",
+        "--file",
+        "/dev/null",
         "source/item",
         "--tags",
         "project:a",
@@ -2040,7 +2162,7 @@ fn shared_metadata_mutations_are_atomic_typed_and_destination_validated() {
         false
     );
     assert_eq!(fs::read(f.bit_path("destination/item")).unwrap(), before);
-    f.ok(&["add", "notes/empty", "--tags", ""]);
+    f.ok(&["add", "--file", "/dev/null", "notes/empty", "--tags", ""]);
     assert_eq!(
         f.json(&["list", "notes", "--json"])[0]["metadata"]["tags"],
         serde_json::json!([])
@@ -2057,7 +2179,7 @@ fn shared_metadata_mutations_are_atomic_typed_and_destination_validated() {
 fn restored_and_copied_markdown_is_authoritative_and_missing_dates_stay_missing() {
     let f = Fixture::new();
     f.ok(&["shelf", "add", "other"]);
-    f.ok(&["add", "notes/restored"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/restored"]);
     let restored =
         "---\ncreated: '2001-01-01T03:00:00+03:00'\ncustom: {future: [true, 2]}\n---\nrestored\r\n";
     f.write("notes/restored", restored);
@@ -2085,7 +2207,14 @@ fn restored_and_copied_markdown_is_authoritative_and_missing_dates_stay_missing(
     assert!(value["updated"].is_string());
     assert!(!f.root.join(".bitshelf/state.json").exists());
     f.ok(&["shelf", "add", "temporary", "--retention", "1d"]);
-    f.ok(&["add", "temporary/no-expiry", "--unset", "expires"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "temporary/no-expiry",
+        "--unset",
+        "expires",
+    ]);
     assert!(
         f.json(&["list", "temporary", "--json"])[0]["metadata"]
             .get("expires")
@@ -2103,9 +2232,16 @@ fn typed_assignment_rejects_nested_duplicates_tags_and_numeric_overflow() {
         "x=!tag value",
     ] {
         assert!(
-            !f.run(&["add", "notes/rejected", "--set-json", value])
-                .status
-                .success()
+            !f.run(&[
+                "add",
+                "--file",
+                "/dev/null",
+                "notes/rejected",
+                "--set-json",
+                value
+            ])
+            .status
+            .success()
         );
         assert!(!f.bit_path("notes/rejected").exists());
     }
@@ -2260,8 +2396,14 @@ fn unknown_flags_are_usage_errors_before_any_store_changes() {
         vec!["validate", "--all"],
         vec!["preview"],
         vec!["--json=false", "recent"],
-        vec!["add", "notes/new", "--stdin=false"],
-        vec!["add", "notes/new", "--interactive=false"],
+        vec!["add", "--file", "/dev/null", "notes/new", "--stdin=false"],
+        vec![
+            "add",
+            "--file",
+            "/dev/null",
+            "notes/new",
+            "--interactive=false",
+        ],
         vec!["list", "--all=garbage"],
         vec!["list", "--long=true"],
         vec!["list", "--paths=false"],
@@ -2296,7 +2438,14 @@ fn unknown_flags_are_usage_errors_before_any_store_changes() {
 fn hyphen_operands_require_separator_but_explicit_option_values_work() {
     let f = Fixture::new();
     f.ok(&["shelf", "add", "--", "-notes"]);
-    f.ok(&["add", "--title=-title", "--", "-notes/-bit"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "--title=-title",
+        "--",
+        "-notes/-bit",
+    ]);
     f.ok(&["show", "--", "-notes/-bit"]);
     f.ok(&["edit", "--title=-edited", "--", "-notes/-bit"]);
     assert_eq!(
@@ -2313,7 +2462,7 @@ fn hyphen_operands_require_separator_but_explicit_option_values_work() {
     f.ok(&["open", "--", "-notes/-bit"]);
     f.ok(&["move", "--", "-notes/-bit", "-notes/-moved"]);
     f.ok(&["show", "--", "-notes/-moved"]);
-    f.ok(&["add", "notes/-ordinary"]); // The full operand does not start with '-'.
+    f.ok(&["add", "--file", "/dev/null", "notes/-ordinary"]); // The full operand does not start with '-'.
     let out = f.run(&["list", "--", "-absent"]);
     assert_eq!(out.status.code(), Some(1));
     assert!(!String::from_utf8_lossy(&out.stderr).contains("create it with"));
@@ -2327,7 +2476,7 @@ fn aliases_preserve_literal_hyphen_ids_and_expanded_option_values() {
     f.ok(&["shelf", "add", "--", "-notes"]);
     for name in ["-bit", "--json", "--"] {
         let id = format!("-notes/{name}");
-        f.ok(&["add", "--", &id]);
+        f.ok(&["add", "--file", "/dev/null", "--", &id]);
         f.ok(&["view", "--", &id]);
         if name == "--json" {
             assert_eq!(f.json(&["lookup", "--json", "--", &id])[0]["id"], id);
@@ -2363,11 +2512,28 @@ fn validate_help_explains_all_shelves_and_maintenance_keeps_arrays() {
     assert_eq!(rows.as_array().unwrap().len(), 1);
     assert_eq!(rows[0]["id"], "notes/invalid");
     assert_eq!(rows[0]["valid"], false);
+    // Permanent shelves are never prune candidates, even with invalid bits.
+    let out = f.run(&["prune", "--dry-run", "--json"]);
+    assert_eq!(out.status.code(), Some(0));
+    let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(rows, serde_json::json!([]));
+    // On a retention shelf the same bit is reported once, with its ID.
+    fs::write(
+        f.root.join("notes/bs.toml"),
+        "discoverable = false\nretention = '1d'\n",
+    )
+    .unwrap();
     let out = f.run(&["prune", "--dry-run", "--json"]);
     assert_eq!(out.status.code(), Some(1));
     let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert!(rows.is_array());
+    assert_eq!(rows.as_array().unwrap().len(), 1);
+    assert_eq!(rows[0]["id"], "notes/invalid");
     assert_eq!(rows[0]["status"], "skipped");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("prune incomplete"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }
 
 #[test]
@@ -2429,4 +2595,327 @@ fn bom_frontmatter_is_recognized_and_edits_do_not_nest_it() {
         f.ok(&["show", "notes/plain-bom", "--body"]).stdout,
         "\u{feff}plain body".as_bytes()
     );
+}
+
+#[test]
+fn add_requires_an_explicit_body_source() {
+    let f = Fixture::new();
+    let mut child = f
+        .command(&["add", "notes/forgot", "--title", "Forgot"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"piped content")
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--file /dev/null"));
+    assert!(!f.bit_path("notes/forgot").exists());
+    assert!(
+        f.command(&["add", "notes/empty", "--file", "/dev/null"])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert_eq!(f.ok(&["show", "notes/empty", "--body"]).stdout, b"");
+}
+
+#[test]
+fn case_and_normalization_variants_never_alias_a_stored_bit() {
+    let f = Fixture::new();
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/Foo",
+        "--title",
+        "Stored",
+    ]);
+    let before = fs::read(f.bit_path("notes/Foo")).unwrap();
+    // Only case-insensitive filesystems (such as default APFS) can open a variant.
+    let insensitive = f.bit_path("notes/foo").exists();
+    for args in [
+        vec!["show", "notes/foo"],
+        vec!["edit", "notes/FOO", "--title", "Changed"],
+        vec!["move", "notes/fOO", "notes/bar"],
+    ] {
+        let out = f.run(&args);
+        assert_eq!(out.status.code(), Some(1), "{args:?}");
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if insensitive {
+            assert!(
+                stderr.contains("stored bit notes/Foo"),
+                "{args:?}: {stderr}"
+            );
+        } else {
+            assert!(stderr.contains("missing bit"), "{args:?}: {stderr}");
+        }
+    }
+    let add = f.run(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "notes/foo",
+        "--title",
+        "Other",
+    ]);
+    assert_eq!(add.status.success(), !insensitive);
+    assert_eq!(fs::read(f.bit_path("notes/Foo")).unwrap(), before);
+    if insensitive {
+        assert!(String::from_utf8_lossy(&add.stderr).contains("notes/Foo"));
+        let out = f.run(&["list", "NOTES"]);
+        assert_eq!(out.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains("stored shelf notes"));
+        // An uppercase extension is not a supported bit filename.
+        fs::write(f.root.join("notes/bits/upper.MD"), "body").unwrap();
+        let out = f.run(&["show", "notes/upper"]);
+        assert_eq!(out.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&out.stderr).contains("upper.MD"));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn root_links_to_files_are_auxiliary_but_linked_shelves_are_refused() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
+    f.ok(&["add", "--file", "/dev/null", "notes/a", "--title", "A"]);
+    let readme = f._temp.path().join("README");
+    fs::write(&readme, "outside").unwrap();
+    symlink(&readme, f.root.join("README.md")).unwrap();
+    for args in [
+        vec!["list", "--json"],
+        vec!["search", "a", "--json"],
+        vec!["shelf", "list", "--json"],
+        vec!["prune", "--dry-run", "--json"],
+        vec!["validate", "--json"],
+    ] {
+        let out = f.run(&args);
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let outside = f._temp.path().join("outside-shelf");
+    fs::create_dir_all(outside.join("bits")).unwrap();
+    symlink(&outside, f.root.join("linked")).unwrap();
+    let out = f.run(&["list", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(value["complete"], false);
+    assert_eq!(value["results"][0]["id"], "notes/a");
+}
+
+#[test]
+fn invalid_reserved_dates_can_be_removed_without_an_editor() {
+    let f = Fixture::new();
+    f.write(
+        "notes/dates",
+        "---\ncreated: yesterday\nupdated: tomorrow\ntitle: Dates\n---\nbody",
+    );
+    let out = f.run(&["edit", "notes/dates", "--title", "Changed"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--unset"));
+    let result = f.json(&[
+        "edit",
+        "notes/dates",
+        "--unset",
+        "created",
+        "--unset",
+        "updated",
+        "--json",
+    ]);
+    assert_eq!(result["changed"], true);
+    let rows = f.json(&["list", "notes", "--json"]);
+    let bit = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["id"] == "notes/dates")
+        .unwrap();
+    assert!(bit["errors"].as_array().unwrap().is_empty());
+    assert!(bit["metadata"].get("created").is_none());
+    assert!(
+        chrono_like(bit["metadata"]["updated"].as_str().unwrap()),
+        "{bit}"
+    );
+    assert_eq!(f.ok(&["show", "notes/dates", "--body"]).stdout, b"body");
+    // Valid reserved dates remain managed automatically.
+    let out = f.run(&["edit", "notes/dates", "--unset", "updated"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("reserved"));
+}
+fn chrono_like(value: &str) -> bool {
+    value.len() >= 20 && value.as_bytes()[4] == b'-' && value.ends_with('Z')
+}
+
+#[test]
+fn shelf_add_preserves_configuration_formatting() {
+    let f = Fixture::new();
+    let original = "# Team notes; keep this comment\ndescription = \"Old\" # inline\n\n[tag_rules.project] # rules\nallowed = [\"a\"]\n";
+    fs::write(f.root.join("notes/bs.toml"), original).unwrap();
+    f.ok(&["shelf", "add", "notes"]);
+    assert_eq!(
+        fs::read_to_string(f.root.join("notes/bs.toml")).unwrap(),
+        original
+    );
+    f.ok(&[
+        "shelf",
+        "add",
+        "notes",
+        "--description",
+        "New",
+        "--retention",
+        "7d",
+    ]);
+    let updated = fs::read_to_string(f.root.join("notes/bs.toml")).unwrap();
+    assert!(
+        updated.contains("# Team notes; keep this comment"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("description = \"New\" # inline"),
+        "{updated}"
+    );
+    assert!(updated.contains("[tag_rules.project] # rules"), "{updated}");
+    let shelves = f.json(&["shelf", "list", "--json"]);
+    assert_eq!(shelves[0]["description"], "New");
+    assert_eq!(shelves[0]["retention"], "7d");
+}
+
+#[test]
+fn closed_pipes_do_not_mask_failures() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
+    f.write("notes/bad", "---\ntags: 42\n---\nbody");
+    f.write("tmp/no-expiry", "body");
+    for args in [
+        vec!["validate"],
+        vec!["validate", "--json"],
+        vec!["list", "--json"],
+        vec!["search", "body"],
+        vec!["prune", "--dry-run"],
+    ] {
+        let (reader, writer) = std::io::pipe().unwrap();
+        drop(reader);
+        let out = f.command(&args).stdout(writer).output().unwrap();
+        assert_eq!(out.status.code(), Some(1), "{args:?}");
+    }
+}
+
+#[test]
+fn empty_or_relative_xdg_config_home_is_ignored() {
+    let temp = tempfile::tempdir().unwrap();
+    let home = temp.path().join("home");
+    let work = temp.path().join("work");
+    fs::create_dir_all(&home).unwrap();
+    fs::create_dir_all(&work).unwrap();
+    for (n, xdg) in ["", "relative"].into_iter().enumerate() {
+        let store = temp.path().join(format!("store{n}"));
+        let out = Command::new(env!("CARGO_BIN_EXE_bs"))
+            .args(["init", "--store", store.to_str().unwrap()])
+            .env("HOME", &home)
+            .env("XDG_CONFIG_HOME", xdg)
+            .current_dir(&work)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(home.join(".config/bitshelf/config.toml").is_file());
+        assert!(fs::read_dir(&work).unwrap().next().is_none());
+        fs::remove_file(home.join(".config/bitshelf/config.toml")).unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn non_regular_bit_files_are_refused_without_blocking() {
+    let f = Fixture::new();
+    assert!(
+        Command::new("mkfifo")
+            .arg(f.bit_path("notes/fifo"))
+            .status()
+            .unwrap()
+            .success()
+    );
+    for args in [
+        vec!["show", "notes/fifo"],
+        vec!["edit", "notes/fifo", "--title", "x"],
+        vec!["move", "notes/fifo", "notes/elsewhere"],
+    ] {
+        let mut child = f
+            .command(&args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let start = std::time::Instant::now();
+        let status = loop {
+            if let Some(status) = child.try_wait().unwrap() {
+                break status;
+            }
+            if start.elapsed() > std::time::Duration::from_secs(5) {
+                child.kill().unwrap();
+                panic!("{args:?} blocked on a FIFO");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        assert_eq!(status.code(), Some(1), "{args:?}");
+    }
+    let out = f.run(&["edit", "notes/missing", "--title", "x"]);
+    assert!(String::from_utf8_lossy(&out.stderr).contains("missing bit notes/missing"));
+}
+
+#[test]
+fn retention_names_and_missing_stores_are_validated() {
+    let f = Fixture::new();
+    for retention in [
+        "+5d",
+        "-5d",
+        "0d",
+        "d",
+        "5",
+        "36501d",
+        "99999999999999999999d",
+    ] {
+        assert!(
+            !f.run(&["shelf", "add", "tmp", "--retention", retention])
+                .status
+                .success(),
+            "{retention}"
+        );
+    }
+    f.ok(&["shelf", "add", "tmp", "--retention", "36500d"]);
+    f.ok(&[
+        "add",
+        "--file",
+        "/dev/null",
+        "tmp/long-lived",
+        "--title",
+        "Long",
+    ]);
+    for id in ["notes/ ", "notes/\t", " /bit"] {
+        assert!(
+            !f.run(&["add", "--file", "/dev/null", id]).status.success(),
+            "{id:?}"
+        );
+    }
+    fs::rename(&f.root, f._temp.path().join("unmounted")).unwrap();
+    let out = f.run(&["shelf", "add", "notes"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("store does not exist"));
+    assert!(!f.root.exists());
 }

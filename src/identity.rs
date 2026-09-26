@@ -4,13 +4,13 @@ use std::path::Path;
 
 pub fn name(value: &str) -> Result<()> {
     ensure!(
-        !value.is_empty()
+        !value.trim().is_empty()
             && !value.starts_with('.')
             && !value.ends_with(".md")
             && !value
                 .chars()
                 .any(|c| c == '/' || c == '\\' || c.is_control()),
-        "invalid name {value:?}: use a nonhidden UTF-8 name without separators, controls or .md suffix"
+        "invalid name {value:?}: use a nonblank, nonhidden UTF-8 name without separators, controls or .md suffix"
     );
     Ok(())
 }

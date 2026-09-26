@@ -163,6 +163,11 @@ fn run(args: Bs) -> Result<()> {
                     .filter(|s| !s.is_empty());
                 }
                 let name = c.name.unwrap();
+                ensure!(
+                    store.config.store.is_dir(),
+                    "store does not exist: {}; run bs init or restore the store before adding shelves",
+                    store.config.store.display()
+                );
                 let dest = store.shelf_path(&name, false)?;
                 let mut cfg = store.settings(&name)?;
                 if let Some(v) = c.description {
@@ -223,6 +228,10 @@ fn run(args: Bs) -> Result<()> {
                 c.id.is_some(),
                 "add requires ID (shelf/bit-name) or --interactive",
             )?;
+            usage_check(
+                c.interactive || c.stdin || c.file.is_some(),
+                "add requires a body source: --file PATH, --stdin, or --interactive (use --file /dev/null for an empty body)",
+            )?;
             let id = c.id.unwrap();
             let destination = store.bit_path(&id)?;
             let shelf = id.split_once('/').unwrap().0;
@@ -230,6 +239,7 @@ fn run(args: Bs) -> Result<()> {
                 !destination.try_exists()?,
                 "bit {id} already exists; choose a different ID"
             );
+            // Interactive drafts start empty; other forms require an explicit source.
             let body = input::body(c.file.as_deref(), c.stdin)?.unwrap_or_default();
             let cfg = store.settings(shelf)?;
             let created_at = Utc::now();
@@ -414,7 +424,7 @@ fn run(args: Bs) -> Result<()> {
             discovery_status(&discovered.errors)
         }
         Commands::Show(c) => {
-            let path = store.bit_path(&c.id)?;
+            let path = store.existing_bit(&c.id)?;
             let content =
                 fs::read_to_string(&path).with_context(|| format!("cannot read bit {}", c.id))?;
             let content = if c.body {
@@ -456,9 +466,7 @@ fn run(args: Bs) -> Result<()> {
                     .iter()
                     .map(|s| {
                         if s.contains('/') {
-                            let p = store.bit_path(s)?;
-                            ensure!(p.is_file(), "missing bit: {s}");
-                            Ok(p)
+                            store.existing_bit(s)
                         } else {
                             store.shelf_path(s, true)
                         }
@@ -504,7 +512,7 @@ fn run(args: Bs) -> Result<()> {
             emit(&results, json_output, human)?;
             ensure!(
                 !failed,
-                "some bits were skipped; fix expiration metadata before retrying"
+                "prune incomplete: some items were skipped or failed; see their errors before retrying"
             );
             Ok(())
         }

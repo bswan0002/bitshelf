@@ -2,12 +2,23 @@ use anyhow::Result;
 use serde::Serialize;
 use std::io::Write;
 
-/// Use fallible writes (including flush) so main can handle a closed pipe quietly.
+static CLOSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A closed stdout pipe (e.g. `| head`) stops output quietly, but the command
+/// still finishes and exits with its own status, so failures are not masked.
 pub fn write(bytes: &[u8]) -> Result<()> {
+    use std::sync::atomic::Ordering;
+    if CLOSED.load(Ordering::Relaxed) {
+        return Ok(());
+    }
     let mut stdout = std::io::stdout().lock();
-    stdout.write_all(bytes)?;
-    stdout.flush()?;
-    Ok(())
+    match stdout.write_all(bytes).and_then(|()| stdout.flush()) {
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => {
+            CLOSED.store(true, Ordering::Relaxed);
+            Ok(())
+        }
+        result => Ok(result?),
+    }
 }
 
 pub fn line(value: impl std::fmt::Display) -> Result<()> {

@@ -63,11 +63,11 @@ pub struct ShelfAdd {
     /// Comma-separated built-in metadata fields
     #[usage(long)]
     pub required: Option<String>,
-    /// Positive whole days, e.g. 14d
+    /// Positive whole days up to 36500d, e.g. 14d
     #[usage(long)]
     pub retention: Option<String>,
 }
-/// Save a new bit, preserving the supplied body verbatim
+/// Save a new bit, preserving the supplied body verbatim. Requires --file, --stdin or --interactive
 #[derive(Args)]
 pub struct Add {
     /// Set a literal string KEY=VALUE (repeatable)
@@ -88,11 +88,13 @@ pub struct Add {
     pub title: Option<String>,
     #[usage(long)]
     pub tags: Option<String>,
-    /// Read a body from a file, or - for stdin
+    /// Read a body from a file, or - for stdin (use /dev/null for an empty body)
     #[usage(long)]
     pub file: Option<PathBuf>,
+    /// Read the body from standard input
     #[usage(long)]
     pub stdin: bool,
+    /// Prompt for missing details and write the body in your editor
     #[usage(long)]
     pub interactive: bool,
 }
@@ -105,7 +107,7 @@ pub struct Edit {
     /// Set a typed JSON value KEY=JSON (repeatable)
     #[usage(long)]
     pub set_json: Vec<String>,
-    /// Remove a metadata field (repeatable)
+    /// Remove a metadata field (repeatable); also removes an invalid created/updated
     #[usage(long)]
     pub unset: Vec<String>,
 

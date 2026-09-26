@@ -81,13 +81,38 @@ fn run_with(
     };
     let now = Utc::now();
     let bits = store.bits(c.shelf.as_deref())?;
-    let mut failed = !bits.complete;
-    let mut results: Vec<_> = bits
-        .errors
-        .into_iter()
-        .map(|e| json!({"id":null,"path":e.path,"status":"skipped","error":e.error}))
-        .collect();
     let mut settings = std::collections::BTreeMap::new();
+    // Per-bit metadata errors are decided below with the bit itself (one row
+    // each). Unreadable entries on permanent shelves are not prune candidates;
+    // everything else (unknown retention, unreadable scopes) stays skipped.
+    let discovered: std::collections::BTreeSet<_> = bits
+        .results
+        .iter()
+        .map(|b| b.path.to_string_lossy().into_owned())
+        .collect();
+    let mut results = vec![];
+    for e in bits.errors {
+        if discovered.contains(&e.path) {
+            continue;
+        }
+        let path = std::path::Path::new(&e.path);
+        let permanent = path
+            .strip_prefix(&store.config.store)
+            .ok()
+            .map(|rel| rel.components().collect::<Vec<_>>())
+            .filter(|parts| parts.len() == 3 && parts[1].as_os_str() == "bits")
+            .and_then(|parts| parts[0].as_os_str().to_str().map(str::to_owned))
+            .is_some_and(|shelf| {
+                let cfg = settings
+                    .entry(shelf.clone())
+                    .or_insert_with(|| store.settings(&shelf).map_err(|e| format!("{e:#}")));
+                cfg.as_ref().is_ok_and(|cfg| cfg.retention.is_none())
+            });
+        if !permanent {
+            results.push(json!({"id":null,"path":e.path,"status":"skipped","error":e.error}));
+        }
+    }
+    let mut failed = !results.is_empty();
     for b in bits.results {
         let operation = (|| -> anyhow::Result<Option<&str>> {
             let shelf = b.id.split('/').next().unwrap();

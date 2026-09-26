@@ -72,6 +72,41 @@ impl Validation {
 pub struct Store {
     pub config: Config,
 }
+/// Root entries that resolve to existing non-directories (for example a
+/// README symlink) are auxiliary files. Dangling links remain diagnostics:
+/// they may be an unavailable linked shelf.
+fn links_to_non_directory(path: &Path) -> bool {
+    fs::metadata(path).is_ok_and(|m| !m.is_dir())
+}
+/// On case-insensitive or normalizing filesystems, a variant spelling can open
+/// an entry stored under different bytes. Return the stored name in that case.
+fn stored_name(dir: &Path, name: &str) -> Result<Option<std::ffi::OsString>> {
+    use std::os::unix::fs::MetadataExt;
+    let target = match fs::symlink_metadata(dir.join(name)) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => {
+            return Err(e).with_context(|| format!("inspecting {}", dir.join(name).display()));
+        }
+    };
+    let mut same = None;
+    for entry in fs::read_dir(dir).with_context(|| format!("reading {}", dir.display()))? {
+        let entry = entry?;
+        if entry.file_name() == name {
+            return Ok(None);
+        }
+        if same.is_none()
+            && entry
+                .metadata()
+                .is_ok_and(|m| m.ino() == target.ino() && m.dev() == target.dev())
+        {
+            same = Some(entry.file_name());
+        }
+    }
+    Ok(Some(
+        same.unwrap_or_else(|| "a differently spelled entry".into()),
+    ))
+}
 fn entry_exists(path: &Path) -> Result<bool> {
     match fs::symlink_metadata(path) {
         Ok(_) => Ok(true),
@@ -108,6 +143,12 @@ impl Store {
         config::name(name)?;
         let p = self.config.store.join(name);
         self.safe(&p)?;
+        if let Some(stored) = stored_name(&self.config.store, name)? {
+            anyhow::bail!(
+                "shelf {name} does not exactly match stored shelf {}; use the exact name",
+                stored.to_string_lossy()
+            );
+        }
         if exists && !p.is_dir() {
             if name.starts_with('-') {
                 anyhow::bail!("missing shelf {name}");
@@ -152,6 +193,9 @@ impl Store {
             }
             let result = (|| -> Result<Option<Shelf>> {
                 let kind = entry.file_type()?;
+                if kind.is_symlink() && links_to_non_directory(&path) {
+                    return Ok(None);
+                }
                 self.safe(&path)?;
                 if !kind.is_dir() {
                     return Ok(None);
@@ -191,10 +235,34 @@ impl Store {
         Ok(out)
     }
     pub fn bit_path(&self, id: &str) -> Result<PathBuf> {
-        let id = crate::identity::BitId::parse(id)?;
-        let p = self.bits_path(id.shelf)?.join(format!("{}.md", id.name));
+        let parsed = crate::identity::BitId::parse(id)?;
+        let bits = self.bits_path(parsed.shelf)?;
+        let filename = format!("{}.md", parsed.name);
+        let p = bits.join(&filename);
         self.safe(&p)?;
+        if let Some(stored) = stored_name(&bits, &filename)? {
+            let stored = stored.to_string_lossy();
+            match stored.strip_suffix(".md") {
+                Some(stem) => anyhow::bail!(
+                    "{id} does not exactly match stored bit {}/{stem}; use the exact ID",
+                    parsed.shelf
+                ),
+                None => anyhow::bail!(
+                    "{id} resolves to stored file {stored}, which is not a supported bit name"
+                ),
+            }
+        }
         Ok(p)
+    }
+    /// Resolve an ID that must name an existing regular bit file.
+    pub fn existing_bit(&self, id: &str) -> Result<PathBuf> {
+        let p = self.bit_path(id)?;
+        match fs::symlink_metadata(&p) {
+            Ok(m) if m.is_file() => Ok(p),
+            Ok(_) => anyhow::bail!("bit {id} is not a regular file: {}", p.display()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => anyhow::bail!("missing bit {id}"),
+            Err(e) => Err(e).with_context(|| format!("inspecting bit {id}")),
+        }
     }
     pub fn discover(&self, shelf: Option<&str>, all: bool) -> Result<Collection<Bit>> {
         self.read_bits(shelf, !all)
@@ -278,9 +346,9 @@ impl Store {
                 }
                 let kind = entry.file_type()?;
                 let path = entry.path();
-                // Include root links without following them to guess whether
-                // they point at a shelf (including dangling links).
-                if kind.is_symlink()
+                // Include root links that may be linked shelves (directories or
+                // dangling targets); links to ordinary files are auxiliary.
+                if (kind.is_symlink() && !links_to_non_directory(&path))
                     || (kind.is_dir()
                         && (entry_exists(&path.join("bits"))?
                             || entry_exists(&path.join("bs.toml"))?))

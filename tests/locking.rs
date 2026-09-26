@@ -58,7 +58,7 @@ fn competing_writer_times_out_then_recovers_after_process_death() {
             }
         }
         assert!(ready);
-        let result = run(&["add", "notes/blocked"]);
+        let result = run(&["add", "notes/blocked", "--file", "/dev/null"]);
         assert!(!result.status.success());
         assert!(String::from_utf8_lossy(&result.stderr).contains("timed out"));
         assert!(!root.join("notes/bits/blocked.md").exists());
@@ -75,6 +75,6 @@ fn competing_writer_times_out_then_recovers_after_process_death() {
         } else {
             "notes/after-kill"
         };
-        assert!(run(&["add", id]).status.success());
+        assert!(run(&["add", id, "--file", "/dev/null"]).status.success());
     }
 }

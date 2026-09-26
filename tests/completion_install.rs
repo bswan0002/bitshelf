@@ -58,6 +58,14 @@ fn bash_missing_file_and_no_final_newline() {
     let path = home.path().join(".bashrc");
     assert!(!path.exists());
     ok(run(home.path(), &["install", "--shell", "bash", "--yes"]));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+    }
     assert!(
         fs::read_to_string(&path)
             .unwrap()
