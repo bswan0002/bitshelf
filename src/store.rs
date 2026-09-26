@@ -315,7 +315,7 @@ impl Store {
             if blocked {
                 continue;
             }
-            let cfg = match self.settings(&name) {
+            let cfg = match self.settings(name) {
                 Ok(cfg) => cfg,
                 Err(error) => {
                     results.push(Validation::failure(
@@ -325,7 +325,7 @@ impl Store {
                     continue;
                 }
             };
-            let bits = match self.bits_path(&name) {
+            let bits = match self.bits_path(name) {
                 Ok(bits) => bits,
                 Err(error) => {
                     results.push(Validation::failure(path, error));

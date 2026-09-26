@@ -240,6 +240,7 @@ fn run(args: Bs) -> Result<()> {
                 &cfg,
                 created_at,
             )?;
+            let default_expiry = bit::parse(&raw)?.0.get("expires").cloned();
             let (mut metadata, body) = bit::parse(&raw)?;
             metadata::Mutation {
                 title: c.title,
@@ -250,7 +251,6 @@ fn run(args: Bs) -> Result<()> {
             }
             .apply(&mut metadata)?;
             raw = lifecycle::render(&metadata, body)?;
-            let default_expiry = bit::parse(&raw)?.0.get("expires").cloned();
             let mut draft = None;
             if c.interactive {
                 use std::io::Write;
@@ -280,19 +280,19 @@ fn run(args: Bs) -> Result<()> {
             let saved = (|| -> Result<PathBuf> {
                 let finalized_at = Utc::now();
                 let (mut metadata, body) = bit::parse(&raw)?;
-                if metadata.get("expires") == default_expiry.as_ref() {
-                    if let Some(retention) = &cfg.retention {
-                        let expires = finalized_at
-                            .checked_add_signed(config::retention(retention)?)
-                            .context("expiration out of range")?;
-                        metadata.insert(
-                            "expires".into(),
-                            expires
-                                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
-                                .into(),
-                        );
-                        raw = lifecycle::render(&metadata, body)?;
-                    }
+                if metadata.get("expires") == default_expiry.as_ref()
+                    && let Some(retention) = &cfg.retention
+                {
+                    let expires = finalized_at
+                        .checked_add_signed(config::retention(retention)?)
+                        .context("expiration out of range")?;
+                    metadata.insert(
+                        "expires".into(),
+                        expires
+                            .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
+                            .into(),
+                    );
+                    raw = lifecycle::render(&metadata, body)?;
                 }
                 raw = lifecycle::new_bit(&raw, finalized_at)?;
                 let checked = bit::inspect(id.clone(), destination, &raw, &cfg);

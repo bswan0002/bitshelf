@@ -263,10 +263,11 @@ fn candidates(
                 };
                 for e in entries.flatten() {
                     let path = e.path();
-                    if e.file_type().is_ok_and(|t| t.is_file()) && store.safe(&path).is_ok() {
-                        if let Ok(id) = crate::identity::discovered(&s.name, &path) {
-                            result.push(usage::complete::Candidate::new(id));
-                        }
+                    if e.file_type().is_ok_and(|t| t.is_file())
+                        && store.safe(&path).is_ok()
+                        && let Ok(id) = crate::identity::discovered(&s.name, &path)
+                    {
+                        result.push(usage::complete::Candidate::new(id));
                     }
                 }
             }

@@ -147,7 +147,13 @@ impl Mutation {
                 operations.push((
                     key.into(),
                     Some(if typed {
-                        serde_json::from_str(value)?
+                        {
+                            let json = serde_json::from_str::<StrictValue>(value)?.0;
+                            // Use our lexical numeric bounds for JSON too; JSON
+                            // alone would round oversized integer literals.
+                            parse(value)?;
+                            json
+                        }
                     } else {
                         value.into()
                     }),

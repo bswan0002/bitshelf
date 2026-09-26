@@ -1987,3 +1987,61 @@ fn shared_metadata_mutations_are_atomic_typed_and_destination_validated() {
             .is_none()
     );
 }
+
+#[test]
+fn restored_and_copied_markdown_is_authoritative_and_missing_dates_stay_missing() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "other"]);
+    f.ok(&["add", "notes/restored"]);
+    let restored =
+        "---\ncreated: '2001-01-01T03:00:00+03:00'\ncustom: {future: [true, 2]}\n---\nrestored\r\n";
+    f.write("notes/restored", restored);
+    fs::copy(f.bit_path("notes/restored"), f.bit_path("notes/copy")).unwrap();
+    for id in ["notes/restored", "notes/copy"] {
+        assert_eq!(
+            f.json(&["edit", id, "--unset", "absent", "--json"])["changed"],
+            false
+        );
+        assert_eq!(fs::read_to_string(f.bit_path(id)).unwrap(), restored);
+    }
+    f.ok(&["move", "notes/copy", "other"]);
+    assert_eq!(
+        fs::read_to_string(f.bit_path("other/copy")).unwrap(),
+        restored
+    );
+    f.write("notes/plain", "body");
+    f.ok(&["edit", "notes/plain", "--title", "Title"]);
+    let content = f.json(&["show", "notes/plain", "--json"])["content"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let value: Value = serde_saphyr::from_str(content.split("---").nth(1).unwrap()).unwrap();
+    assert!(value.get("created").is_none());
+    assert!(value["updated"].is_string());
+    assert!(!f.root.join(".bitshelf/state.json").exists());
+    f.ok(&["shelf", "add", "temporary", "--retention", "1d"]);
+    f.ok(&["add", "temporary/no-expiry", "--unset", "expires"]);
+    assert!(
+        f.json(&["list", "temporary", "--json"])[0]["metadata"]
+            .get("expires")
+            .is_none()
+    );
+}
+#[test]
+fn typed_assignment_rejects_nested_duplicates_tags_and_numeric_overflow() {
+    let f = Fixture::new();
+    for value in [
+        r#"x={"a":1,"a":2}"#,
+        r#"x={"<<":1}"#,
+        "x=18446744073709551616",
+        "x=1e999",
+        "x=!tag value",
+    ] {
+        assert!(
+            !f.run(&["add", "notes/rejected", "--set-json", value])
+                .status
+                .success()
+        );
+        assert!(!f.bit_path("notes/rejected").exists());
+    }
+}

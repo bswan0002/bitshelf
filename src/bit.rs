@@ -55,7 +55,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
     let (map, body) = match parse(raw) {
         Ok(v) => v,
         Err(e) => {
-            errors.push(e.to_string());
+            errors.push(format!("{e:#}"));
             (Mapping::new(), raw)
         }
     };

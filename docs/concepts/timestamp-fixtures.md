@@ -1,7 +1,8 @@
 # Timestamp implementation fixtures
 
-Specification for tickets 08/09 and regression ticket 17; these cases are not yet
-executable coverage. Use injected clocks rather than sleeps. For every failure,
+Regression matrix for the Markdown-authoritative contract. Core clock/semantic cases
+are executable in src/lifecycle.rs; process/editor/storage cases live in tests/cli.rs,
+tests/terminal.rs, tests/locking.rs and filesystem/prune unit tests. Use injected clocks rather than sleeps. For every failure,
 assert source/destination bytes and draft recovery behavior, not just exit status.
 See the normative [timestamp contract](timestamps.md).
 

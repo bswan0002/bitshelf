@@ -9,6 +9,9 @@ Save a new bit, preserving the supplied body verbatim
 - **`[ID]`** — Identifier: shelf/bit-name (no .md extension)
 
 ## Flags
+- **`--set <SET>`** — Set a literal string KEY=VALUE (repeatable)
+- **`--set-json <SET_JSON>`** — Set a typed JSON value KEY=JSON (repeatable)
+- **`--unset <UNSET>`** — Remove a metadata field (repeatable)
 - **`--title <TITLE>`** — Optional descriptive title; the identifier is the display name
 - **`--tags <TAGS>`**
 - **`--file <FILE>`** — Read a body from a file, or - for stdin

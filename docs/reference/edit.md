@@ -9,6 +9,9 @@ Edit a bit via your editor, or replace its body/metadata noninteractively
 - **`<ID>`**
 
 ## Flags
+- **`--set <SET>`** — Set a literal string KEY=VALUE (repeatable)
+- **`--set-json <SET_JSON>`** — Set a typed JSON value KEY=JSON (repeatable)
+- **`--unset <UNSET>`** — Remove a metadata field (repeatable)
 - **`--file <FILE>`** — Read a body from a file, or - for stdin
 - **`--stdin`**
 - **`--title <TITLE>`**
