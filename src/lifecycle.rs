@@ -58,23 +58,11 @@ pub fn validate(store: &Store, id: &str, raw: &str) -> Result<()> {
 }
 pub fn replace(store: &Store, id: &str, before: &str, after: &str) -> Result<()> {
     let path = store.bit_path(id)?;
-    ensure!(
-        fs::read_to_string(&path)? == before,
-        "{id} changed during operation; rerun (no changes overwritten)"
-    );
     if before != after {
-        atomic_write(&path, after.as_bytes())?;
+        crate::filesystem::publish(&path, after.as_bytes(), Some(before.as_bytes()), None)?;
+    } else {
+        crate::filesystem::unchanged(&path, before.as_bytes())?;
     }
-    Ok(())
-}
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
-    let mut tmp = tempfile::NamedTempFile::new_in(path.parent().context("missing parent")?)?;
-    if let Ok(meta) = fs::metadata(path) {
-        tmp.as_file().set_permissions(meta.permissions())?;
-    }
-    tmp.write_all(bytes)?;
-    tmp.as_file().sync_all()?;
-    tmp.persist(path)?;
     Ok(())
 }
 

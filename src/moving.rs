@@ -3,7 +3,7 @@ use crate::{bit, cli::Move, lifecycle, store::Store};
 use anyhow::{Context, Result, ensure};
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{fs, io::Write};
+use std::fs;
 
 pub fn run(store: &Store, args: Move) -> Result<Value> {
     let source = store.bit_path(&args.id)?;
@@ -46,32 +46,30 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         return Ok(result);
     }
 
-    // Copy into a destination-local temporary file (also supports different mounts).
-    // Publish without clobbering, then remove the source. A crash can leave both
-    // copies, but never deliberately removes the only copy of a bit.
-    let mut tmp = tempfile::NamedTempFile::new_in(destination.parent().unwrap())?;
-    tmp.as_file()
-        .set_permissions(fs::metadata(&source)?.permissions())?;
-    tmp.write_all(after.as_bytes())?;
-    tmp.as_file().sync_all()?;
-    store.safe(&destination)?;
     store.safe(&source)?;
-    ensure!(
-        fs::read_to_string(&source)? == before,
-        "source changed during move; nothing moved"
-    );
-    tmp.persist_noclobber(&destination)
-        .with_context(|| format!("cannot create {id}; source preserved"))?;
+    crate::filesystem::unchanged(&source, before.as_bytes())?;
+    crate::filesystem::publish(
+        &destination,
+        after.as_bytes(),
+        None,
+        Some(fs::metadata(&source)?.permissions()),
+    )
+    .context(
+        "destination publication failed; source preserved; inspect destination before retrying",
+    )?;
     let remove = (|| -> Result<()> {
         store.safe(&source)?;
         ensure!(
             fs::read_to_string(&source)? == before,
             "source changed during move"
         );
-        fs::remove_file(&source)?;
+        crate::filesystem::remove(&source, before.as_bytes())?;
         Ok(())
     })();
     if let Err(error) = remove {
+        if !source.try_exists()? {
+            return Err(error).context("move destination saved and source removed; destination retained; source-directory durability uncertain");
+        }
         // Do not remove a destination externally changed since publication.
         let rollback = (|| -> Result<()> {
             store.safe(&destination)?;
@@ -79,7 +77,7 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
                 fs::read_to_string(&destination)? == after,
                 "destination changed during rollback"
             );
-            fs::remove_file(&destination)?;
+            crate::filesystem::remove(&destination, after.as_bytes())?;
             Ok(())
         })();
         if let Err(rollback) = rollback {
@@ -93,4 +91,44 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
             .context("move did not complete; source preserved, destination rolled back");
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn failed_source_removal_rolls_back_but_durability_failure_keeps_destination() {
+        use crate::filesystem::{self, Stage};
+        for stage in [Stage::Remove, Stage::DirectorySync] {
+            let tmp = tempfile::tempdir().unwrap();
+            let store = Store {
+                config: crate::config::Config {
+                    store: tmp.path().into(),
+                    editor: None,
+                    aliases: Default::default(),
+                },
+            };
+            fs::create_dir_all(tmp.path().join("notes/bits")).unwrap();
+            let source = store.write_bit("notes/a", "body").unwrap();
+            filesystem::inject(&source, stage);
+            let result = run(
+                &store,
+                Move {
+                    id: "notes/a".into(),
+                    destination: "notes/b".into(),
+                    set: vec![],
+                    dry_run: false,
+                },
+            );
+            assert!(result.is_err());
+            let destination = store.bit_path("notes/b").unwrap();
+            if stage == Stage::Remove {
+                assert_eq!(fs::read_to_string(source).unwrap(), "body");
+                assert!(!destination.exists());
+            } else {
+                assert!(!source.exists());
+                assert_eq!(fs::read_to_string(destination).unwrap(), "body");
+            }
+        }
+    }
 }

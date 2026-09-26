@@ -7,7 +7,6 @@ use serde::Serialize;
 use std::{
     collections::BTreeSet,
     fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -325,10 +324,7 @@ impl Store {
     }
     pub fn write_bit(&self, id: &str, raw: &str) -> Result<PathBuf> {
         let path = self.bit_path(id)?;
-        let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
-        tmp.write_all(raw.as_bytes())?;
-        tmp.persist_noclobber(&path)
-            .with_context(|| format!("cannot create {id}; if it exists, choose a different ID"))?;
+        crate::filesystem::publish(&path, raw.as_bytes(), None, None)?;
         Ok(path)
     }
 }

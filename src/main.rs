@@ -5,6 +5,7 @@ mod completion;
 mod config;
 mod context;
 mod editor;
+mod filesystem;
 mod identity;
 mod input;
 mod interactive;

@@ -104,11 +104,17 @@ impl ShelfConfig {
     }
     pub fn save(&self, path: &Path) -> Result<()> {
         self.validate()?;
-        let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
-        use std::io::Write;
-        tmp.write_all(toml::to_string_pretty(self)?.as_bytes())?;
-        tmp.persist(path)
-            .context("cannot save shelf configuration")?;
+        let before = match fs::read(path) {
+            Ok(bytes) => Some(bytes),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(e.into()),
+        };
+        crate::filesystem::publish(
+            path,
+            toml::to_string_pretty(self)?.as_bytes(),
+            before.as_deref(),
+            None,
+        )?;
         Ok(())
     }
 }
@@ -200,15 +206,13 @@ impl Config {
     pub fn save(&self, path: &Path, new: bool) -> Result<()> {
         self.validate()?;
         fs::create_dir_all(path.parent().unwrap())?;
-        let mut tmp = tempfile::NamedTempFile::new_in(path.parent().unwrap())?;
-        use std::io::Write;
-        tmp.write_all(toml::to_string_pretty(self)?.as_bytes())?;
-        if new {
-            tmp.persist_noclobber(path)
-                .context("configuration already exists; it was not overwritten")?;
-        } else {
-            tmp.persist(path).context("cannot save configuration")?;
-        }
+        let before = if new { None } else { Some(fs::read(path)?) };
+        crate::filesystem::publish(
+            path,
+            toml::to_string_pretty(self)?.as_bytes(),
+            before.as_deref(),
+            None,
+        )?;
         Ok(())
     }
 }
