@@ -64,6 +64,7 @@ jobs:
       - uses: Swatinem/rust-cache@bc2d2e71bd35c5549942babaa51a89c586b981d1 # v2.8.1
       - run: cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
       - run: python3 -B scripts/test_release.py
+      - run: python3 scripts/notices.py --check
       - run: cargo build --release --locked --target ${{ matrix.target }}
       - run: cargo install usage-cli --version 6.11.1 --locked
       - run: bash scripts/generate-docs.sh
@@ -76,7 +77,8 @@ jobs:
         run: |
           python3 scripts/release.py validate --tag "$RELEASE_TAG" --binary "target/$TARGET/release/bs"
           mkdir -p staging archives
-          cp "target/$TARGET/release/bs" dist/bs.1 LICENSE README.md staging/
+          cp "target/$TARGET/release/bs" dist/bs.1 LICENSE README.md THIRD_PARTY_NOTICES.txt staging/
+          cp licenses/inventory.json staging/DEPENDENCIES.json
           cp -R dist/completions skills staging/
           python3 scripts/build-info.py "$TARGET" > staging/BUILD-INFO.json
           tar -czf "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" -C staging .

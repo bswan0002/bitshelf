@@ -47,6 +47,7 @@ print(f'''class Bitshelf < Formula
     zsh_completion.install "completions/_bs"
     fish_completion.install "completions/bs.fish"
     pkgshare.install "skills"
+    pkgshare.install "THIRD_PARTY_NOTICES.txt", "DEPENDENCIES.json", "BUILD-INFO.json"
   end
 
   test do
