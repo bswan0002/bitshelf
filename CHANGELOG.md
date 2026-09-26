@@ -2,6 +2,8 @@
 
 ## 0.1.0 — Unreleased prototype
 
+- Ranked, index-free search with cross-field AND terms, exact phrases, `!` exclusions, separator-insensitive ID/tag matching, `--any`, exact `--tag` filtering, `--sort id`, and JSON match fields/scores; updated retrieval docs and agent skill.
+
 - Validated, no-clobber `bs move` with renaming, string metadata assignments, dry runs, and timestamp-history transfer.
 - Configured argv aliases with safe ID templates; archive shelf recipe without archive-specific storage or hooks.
 - Shelf `discoverable = false` excludes default list/search and open picker results; explicit access, `--all`, and maintenance remain available.

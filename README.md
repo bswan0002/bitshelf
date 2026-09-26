@@ -28,7 +28,7 @@ Keep something, then find it from another context:
 
 ```sh
 bs add notes/pagination-research --tags api --file findings.md
-bs search pagination
+bs search 'pagination api'   # terms can match across fields; relevance-ranked
 bs show notes/pagination-research --body
 bs edit notes/pagination-research --file revised.md
 ```

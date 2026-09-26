@@ -16,16 +16,31 @@ List defaults to identifier order. Timestamp sorting is ascending unless `--reve
 ## Search
 
 ```sh
-bs search checklist
 bs search 'release checklist' --shelf notes --long
+bs search 'release checklist !draft' --tag workflow
+bs search '"release checklist"'       # contiguous phrase, not two separate terms
+bs search 'pagination cursor' --any   # either term
 bs search checklist --all --json
+bs search checklist --sort id        # identifier order for scripts
 ```
 
-Search is case-insensitive, plain-text matching of the **whole query as one substring** against each bit's ID, optional title, tags, and body. Results are sorted by identifier. A search with no matches succeeds with empty output.
+Search is case-insensitive. By default, **every whitespace-separated term** must appear somewhere in the bit's ID, optional title, tags, or body; terms can match different fields and appear in any order. `release checklist` finds `release-checklist` and prose with the words apart. Terms are substrings, not whole words; there is no stemming, regex, or fuzzy character matching.
 
-Because the query must appear verbatim, `release checklist` won't match a bit that only contains `release-checklist` or the two words apart. Prefer one distinctive word, try variants, and combine search with `--shelf`, `list --tag`, and `list --long`. Better multi-term matching is planned.
+- **Phrases:** double quotes preserve a contiguous substring, including punctuation and whitespace. `"release checklist"` does not match `release-checklist`. A phrase must fit within one field or one tag.
+- **Exclusions:** prefix a term or phrase with `!`, such as `!draft` or `!"old version"`. Any matching exclusion rejects the bit, even with `--any`. An exclusion-only query returns all remaining bits.
+- **Broader matching:** `--any` requires at least one positive term rather than all.
+- **Separators:** unquoted terms also match IDs and tags with `-`, `_`, `.`, `/`, and `:` treated as spaces. For example, `project_bitshelf` matches the tag `project:bitshelf`. Quoted phrases bypass this normalization.
+- **Scope:** `--shelf` selects a shelf; `--tag` requires an exact, case-sensitive tag, like `bs list --tag`. These filters apply regardless of `--any`.
 
-There's no search index; every search reads the current files.
+Pass the query as one shell argument. Single shell quotes around it preserve search's double quotes and `!`. Within the query, backslash escapes the next character: `bs search '\!important'` searches for a literal `!important`, and `bs search '"say \"hello\""'` searches for `say "hello"`. Use `\\` for a literal backslash. Empty queries/terms, unfinished escapes, unmatched quotes, and quotes not separated into their own terms are usage errors (exit 2).
+
+### Relevance and match details
+
+Results default to descending relevance, with identifier as the tie-breaker. Each distinct positive term contributes its strongest field's weight: **ID/title 8, tags 4, body 1**. Scores are summed across terms; repeated occurrences and duplicate terms do not inflate ranking. Use `--sort id` for identifier order.
+
+JSON results include `matches.fields` (which fields matched positive terms) and `matches.score`; bodies are omitted. Use these signals to choose candidates, then `bs show` to read them. Exclusion-only results have empty match fields and score 0. See the [JSON contract](../json.md).
+
+A search with no matches succeeds with empty text output or JSON `[]`. There's no search index, dependency, or daemon; every search reads the current files.
 
 ## Discovery
 

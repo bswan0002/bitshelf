@@ -70,6 +70,212 @@ impl Fixture {
     }
 }
 #[test]
+fn search_terms_phrases_separators_and_field_boundaries() {
+    let f = Fixture::new();
+    f.write("notes/docs-content", "---\ntitle: Direction\ntags: [project:bitshelf, release, checklist]\n---\nAPI design\nRésumé 🦀");
+    let ids = |query: &str| -> Vec<String> {
+        f.json(&["search", query, "--json"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|b| b["id"].as_str().unwrap().to_owned())
+            .collect()
+    };
+    for query in [
+        "DOCS content",
+        "docs direction bitshelf API",
+        "project bitshelf",
+        "docs_content",
+        "docs.content",
+        "docs/content",
+        "project-bitshelf",
+        "\"API design\"",
+        "RÉSUMÉ 🦀",
+        "design API",
+    ] {
+        assert_eq!(ids(query), vec!["notes/docs-content"], "{query}");
+    }
+    for query in [
+        "\"docs content\"",
+        "\"project bitshelf\"",
+        "\"release checklist\"",
+        "\"Direction API\"",
+        "\"API  design\"",
+        "missing API",
+        "dcs",
+    ] {
+        assert!(ids(query).is_empty(), "{query}");
+    }
+    assert_eq!(ids("\"docs-content\""), vec!["notes/docs-content"]);
+    let result = f.json(&["search", "docs Direction bitshelf API", "--json"]);
+    assert_eq!(
+        result[0]["matches"],
+        serde_json::json!({"fields": ["id", "title", "tags", "body"], "score": 21})
+    );
+    assert!(result[0].get("body").is_none());
+    assert!(f.json(&["list", "--json"])[0].get("matches").is_none());
+}
+
+#[test]
+fn search_exclusions_any_and_exact_tag_filter() {
+    let f = Fixture::new();
+    f.write("notes/a", "---\ntags: [api]\n---\nrelease checklist");
+    f.write("notes/b", "---\ntags: [API]\n---\nrelease draft");
+    f.write("notes/c", "checklist !literal \"quoted\" C:\\tmp");
+    assert_eq!(f.ok(&["search", "release !draft"]).stdout, b"notes/a\n");
+    assert_eq!(
+        f.ok(&[
+            "search",
+            "release checklist !draft",
+            "--any",
+            "--sort",
+            "id"
+        ])
+        .stdout,
+        b"notes/a\nnotes/c\n"
+    );
+    assert_eq!(
+        f.ok(&["search", "!draft", "--any"]).stdout,
+        b"notes/a\nnotes/c\n"
+    );
+    assert_eq!(
+        f.ok(&["search", "!\"release checklist\"", "--sort", "id"])
+            .stdout,
+        b"notes/b\nnotes/c\n"
+    );
+    assert_eq!(
+        f.ok(&["search", "release", "--tag", "api"]).stdout,
+        b"notes/a\n"
+    );
+    assert_eq!(
+        f.ok(&["search", "release", "--tag", "API"]).stdout,
+        b"notes/b\n"
+    );
+    for query in [
+        r"\!literal",
+        r#"\"quoted\""#,
+        r"C:\\tmp",
+        r"release\ checklist",
+    ] {
+        assert_eq!(
+            f.json(&["search", query, "--json"])
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+            "{query}"
+        );
+    }
+    assert_eq!(
+        f.json(&["search", "release !release", "--any", "--json"]),
+        serde_json::json!([])
+    );
+}
+
+#[test]
+fn ranked_search_respects_discovery_and_output_modes() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "archive"]);
+    fs::write(f.root.join("archive/bs.toml"), "discoverable = false\n").unwrap();
+    f.write(
+        "notes/needle",
+        "---\ntitle: Current\ntags: [api]\n---\nrelease",
+    );
+    f.write("archive/needle", "---\ntags: [api]\n---\nrelease");
+    assert_eq!(
+        f.ok(&["search", "needle release", "--tag", "api", "--null"])
+            .stdout,
+        b"notes/needle\0"
+    );
+    assert_eq!(
+        f.ok(&["search", "needle release", "--long"]).stdout,
+        b"notes/needle\tCurrent\n"
+    );
+    assert_eq!(
+        f.ok(&["search", "needle release", "--all"]).stdout,
+        b"archive/needle\nnotes/needle\n"
+    );
+    assert_eq!(
+        f.ok(&[
+            "search",
+            "needle missing",
+            "--any",
+            "--shelf",
+            "archive",
+            "--tag",
+            "api"
+        ])
+        .stdout,
+        b"archive/needle\n"
+    );
+    assert_eq!(
+        f.ok(&["search", "needle release", "--paths"]).stdout,
+        format!("{}\n", f.bit_path("notes/needle").display()).as_bytes()
+    );
+    for query in ["!notes", "!current", "!api", "!release"] {
+        assert_eq!(f.json(&["search", query, "--json"]), serde_json::json!([]));
+    }
+    let result = f.json(&["search", "!missing", "--json"]);
+    assert_eq!(
+        result[0]["matches"],
+        serde_json::json!({"fields": [], "score": 0})
+    );
+}
+
+#[test]
+fn search_ranking_is_stable_and_independent_of_repetition() {
+    let f = Fixture::new();
+    f.write("notes/a-body", &"needle ".repeat(100));
+    f.write("notes/b-tag", "---\ntags: [needle, needle]\n---\nneedle");
+    f.write("notes/c-title", "---\ntitle: Needle\n---\nneedle");
+    f.write("notes/d-needle", "needle");
+    let ranked = b"notes/c-title\nnotes/d-needle\nnotes/b-tag\nnotes/a-body\n";
+    assert_eq!(f.ok(&["search", "needle"]).stdout, ranked);
+    assert_eq!(
+        f.ok(&["search", "needle NEEDLE", "--sort", "relevance"])
+            .stdout,
+        ranked
+    );
+    assert_eq!(
+        f.ok(&["search", "needle", "--sort", "id"]).stdout,
+        b"notes/a-body\nnotes/b-tag\nnotes/c-title\nnotes/d-needle\n"
+    );
+    let json = f.json(&["search", "needle", "--json"]);
+    assert_eq!(json[0]["matches"]["score"], 8);
+    assert_eq!(json[2]["matches"]["score"], 4);
+    assert_eq!(json[3]["matches"]["score"], 1);
+}
+
+#[test]
+fn search_rejects_invalid_queries_as_usage_errors() {
+    let f = Fixture::new();
+    for query in [
+        "",
+        "  \t",
+        "!",
+        "\"\"",
+        "!\"\"",
+        "\"unfinished",
+        "trailing\\",
+        "abc\"def",
+        "\"abc\"def",
+    ] {
+        let output = f.run(&["search", query, "--json"]);
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{query:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stdout.is_empty());
+    }
+    assert_eq!(
+        f.run(&["search", "x", "--sort", "updated"]).status.code(),
+        Some(2)
+    );
+}
+
+#[test]
 fn verbatim_workflow_and_collision() {
     let f = Fixture::new();
     let body = "\nExact prompt\r\n```tsx\n  x();\n```\n---\nno final newline";

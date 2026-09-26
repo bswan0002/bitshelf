@@ -35,7 +35,7 @@ Retrieval follows a progression, loading only what's needed:
 3. **Find candidates.** `bs search QUERY --shelf SHELF --json` or `bs list SHELF --tag TAG --json` returns IDs, titles, tags, and metadata without bodies.
 4. **Retrieve selected content.** `bs show ID --json` (or `--body`) reads only the chosen bits.
 
-Search is currently whole-phrase substring matching, so agents get better results with distinctive single words, several attempts, and tag filters. bitshelf doesn't detect relevance automatically; the agent decides what to look up based on your request.
+Use multi-term queries such as `bs search 'dashboard filters' --shelf design-docs --json`. Terms can match across fields; results are relevance-ranked and include `matches.fields` and `matches.score` to help select candidates. Narrow with `--tag` or `!exclusions`, preserve phrases with double quotes inside the query, and broaden sparse results with `--any`. See [search semantics](concepts/finding.md#search). Ranking is lexical, not semantic; the agent still decides which material is relevant to your request.
 
 ## How an agent saves things
 

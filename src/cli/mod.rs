@@ -138,7 +138,7 @@ pub struct List {
     #[usage(long)]
     pub tag: Option<String>,
 }
-/// Search IDs, titles, tags and bodies (case-insensitive plain text)
+/// Search IDs, titles, tags and bodies with ranked, case-insensitive terms
 #[derive(Args)]
 pub struct Search {
     /// Include shelves excluded from default discovery
@@ -154,7 +154,17 @@ pub struct Search {
     #[usage(long)]
     pub null: bool,
 
+    /// Whitespace-separated AND terms, "exact phrases", and !exclusions
     pub query: String,
+    /// Match any positive term instead of all; exclusions still apply
+    #[usage(long)]
+    pub any: bool,
+    /// Filter by an exact, case-sensitive tag
+    #[usage(long)]
+    pub tag: Option<String>,
+    /// Sort by relevance (default) or identifier
+    #[usage(long, choices("relevance", "id"))]
+    pub sort: Option<String>,
     #[usage(long, complete = complete_search)]
     pub shelf: Option<String>,
 }

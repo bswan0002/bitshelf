@@ -11,6 +11,7 @@ mod lifecycle;
 mod moving;
 mod output;
 mod prune;
+mod search;
 mod store;
 
 use anyhow::{Context, Result, ensure};
@@ -366,23 +367,36 @@ fn run(args: Bs) -> Result<()> {
         }
         Commands::Search(c) => {
             output::check_listing(json_output, c.long, c.paths, c.null)?;
-            let query = c.query.to_lowercase();
-            let bits: Vec<_> = store
+            let query = search::Query::parse(&c.query, c.any)?;
+            let mut results: Vec<_> = store
                 .discover(c.shelf.as_deref(), c.all)?
                 .into_iter()
-                .filter(|b| {
-                    format!(
-                        "{}\n{}\n{}\n{}",
-                        b.id,
-                        b.title.as_deref().unwrap_or(""),
-                        b.tags.join(" "),
-                        b.body
-                    )
-                    .to_lowercase()
-                    .contains(&query)
-                })
+                .filter(|b| c.tag.as_ref().is_none_or(|t| b.tags.contains(t)))
+                .filter_map(|bit| query.matches(&bit).map(|matched| (bit, matched)))
                 .collect();
-            output::listing(&bits, json_output, c.long, c.paths, c.null)
+            results.sort_by(|(a, am), (b, bm)| {
+                if c.sort.as_deref() == Some("id") {
+                    a.id.cmp(&b.id)
+                } else {
+                    bm.score.cmp(&am.score).then_with(|| a.id.cmp(&b.id))
+                }
+            });
+            if json_output {
+                #[derive(serde::Serialize)]
+                struct SearchResult<'a> {
+                    #[serde(flatten)]
+                    bit: &'a bit::Bit,
+                    matches: &'a search::Match,
+                }
+                let values: Vec<_> = results
+                    .iter()
+                    .map(|(bit, matches)| SearchResult { bit, matches })
+                    .collect();
+                emit(&values, true, "")
+            } else {
+                let bits: Vec<_> = results.into_iter().map(|(bit, _)| bit).collect();
+                output::listing(&bits, false, c.long, c.paths, c.null)
+            }
         }
         Commands::Show(c) => {
             let path = store.bit_path(&c.id)?;

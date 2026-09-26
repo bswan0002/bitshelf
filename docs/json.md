@@ -12,7 +12,8 @@
 | `aliases` | Object mapping alias names to argument arrays |
 | `edit` | `{id, path, changed}` |
 | `sync` | `{dry_run, results: [{id, changed, metadata_changed, baselined, error}]}` |
-| `list`, `search` | `[{id, path, title, tags, metadata, errors}]` |
+| `list` | `[{id, path, title, tags, metadata, errors}]` |
+| `search` | `[{id, path, title, tags, metadata, errors, matches: {fields, score}}]` |
 | `show` | `{id, path, content}` (complete Markdown by default; body only with `--body`) |
 | `context` | `{name, path, bits_path, description, discoverable, required, tag_rules, retention, guidance}` |
 | `open` | `{paths: [...], opened: true}` after editor success |
@@ -20,6 +21,8 @@
 | `prune` | `[{id, path, status, error?}]` |
 
 `metadata` is a JSON representation of YAML frontmatter, including unknown fields; YAML values that cannot be represented in JSON produce `null`. `errors` is an array of diagnostic strings. `title` is the nonempty title metadata string, or `null` when absent/invalid; it is not synthesized from the filename. Use `id` for display and identity. Search/list warn about invalid files but succeed so other bits stay accessible.
+
+Search's `matches.fields` lists positive-term matches in stable order: `id`, `title`, `tags`, `body` (only matching fields are included). `matches.score` is the sum of each distinct positive term's strongest field weight: ID/title 8, tags 4, body 1. Results are score-descending with ID tie-breaking unless `--sort id` is selected. Exclusion-only matches have `fields: []` and `score: 0`. Bodies and snippets are not emitted; retrieve selected bits with `show`. See [search syntax](concepts/finding.md#search).
 
 `context.guidance` is `{path, text}` or `null`. `context.path` is the shelf root; `bits_path` is its content directory. Bit IDs remain `shelf/bit-name`, while bit paths include `bits/`. In shelf listings, `configured` means local `bs.toml` exists and `missing` means the bits directory is absent or not a directory. Structural validation errors (missing bits directories, invalid shelf configuration, or symlinked shelves/settings/guidance) produce rows with `id: null`. Symlinked bits produce rows with their bit IDs. Validation does not follow links and continues checking other accessible shelves/bits. Deleted shelves are no longer discovered. Prune statuses are `would_remove`, `removed`, or `skipped`; skipped rows include `error`. Future/permanent bits are not prune results. `--dry-run` changes only eligible rows' status, not selection rules.
 

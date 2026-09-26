@@ -3,15 +3,20 @@
 
 - **Usage:** `bs search [FLAGS] <QUERY>`
 
-Search IDs, titles, tags and bodies (case-insensitive plain text)
+Search IDs, titles, tags and bodies with ranked, case-insensitive terms
 
 ## Arguments
-- **`<QUERY>`**
+- **`<QUERY>`** — Whitespace-separated AND terms, "exact phrases", and !exclusions
 
 ## Flags
 - **`--all`** — Include shelves excluded from default discovery
 - **`--long`** — Include optional title metadata after each ID
 - **`--paths`** — Print filesystem paths instead of IDs
 - **`--null`** — Terminate IDs or paths with NUL instead of newline
+- **`--any`** — Match any positive term instead of all; exclusions still apply
+- **`--tag <TAG>`** — Filter by an exact, case-sensitive tag
+- **`--sort <SORT>`** — Sort by relevance (default) or identifier
+
+  **Choices:** `relevance`, `id`
 - **`--shelf <SHELF>`**
 - **`-h --help`** — Print help

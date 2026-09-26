@@ -43,7 +43,7 @@ Retrieve progressively; load only what the request needs:
 
 1. Discover shelves with `bs shelf list --json`; use descriptions to choose relevant shelves.
 2. When a shelf has guidance and the task depends on its conventions (for example, which tags identify a repository), load `bs context SHELF --json`.
-3. Find candidates with `bs search QUERY --shelf SHELF --json` or `bs list SHELF --tag TAG --json`. Search matches the whole query as one case-insensitive substring of the ID, title, tags, or body, so prefer distinctive single words, try variants, and combine with tag filters or `bs list SHELF --long`.
+3. Find candidates with `bs search 'dashboard filters' --shelf SHELF --json` or `bs list SHELF --tag TAG --json`. Search requires every case-insensitive term across ID, title, tags, or body, and ranks results by relevance. Use `matches.fields` and `matches.score` to select candidates without loading bodies. Narrow with an exact, case-sensitive `--tag TAG` or `!excluded` term; use double quotes inside the query for a contiguous phrase (`bs search '"exact phrase" !draft'`). If results are sparse, broaden with `--any` or fewer terms. Matching is lexical, not semantic; `--sort id` gives identifier order for scripts.
 4. Retrieve only selected candidates with `bs show ID --json` (add `--body` for body-only content).
 
 Use `search`, `list`, and `show`, not `open` or editor-mode `edit` (which launches an editor). Identifiers are shelf-qualified and exclude `.md`, for example `ui/command-menu`. Use structured identifiers/paths rather than guessing. Default list/search omit shelves with `discoverable = false`; use an explicit shelf or `--all` when searching archived or otherwise excluded material. Do not bulk-load shelves into the conversation.

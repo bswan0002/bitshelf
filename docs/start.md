@@ -40,12 +40,12 @@ Later—another session, another worktree, another repository—it's still there
 ```sh
 bs list --long                  # every bit, with titles
 bs list notes --tag api         # filter by shelf and tag
-bs search pagination            # search IDs, titles, tags, and bodies
+bs search 'cursor api'          # terms can match title and tags
 bs show notes/pagination-research --body
 ```
 
-::: tip Search is plain text for now
-`bs search` matches the whole query as one case-insensitive substring. `pagination` finds the bit above, but `pagination findings` only matches if that exact phrase appears. Search for a distinctive word, and lean on tags and `bs list --long`. Better term matching is planned.
+::: tip Find it without remembering the wording
+`bs search 'cursor api'` finds the bit above even though `cursor` is in its title and `api` is a tag. Results are relevance-ranked. Narrow with `--tag api` or `!draft`, use `bs search '"cursor pagination"'` for a phrase, or broaden with `--any`. See [Finding and reading](concepts/finding.md#search).
 :::
 
 ## 4. Use it and build on it

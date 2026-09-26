@@ -105,7 +105,7 @@ bs search filters --shelf design-docs
 bs show design-docs/dashboard-filters --body
 ```
 
-Tags are the most reliable way to narrow results, because [search](../concepts/finding.md#search) currently matches the whole query as one substring.
+Combine [multi-term search](../concepts/finding.md#search) with exact tag filtering to narrow results: `bs search 'dashboard filters' --shelf design-docs --tag repo:api-client`.
 
 ## Refresh in bulk
 
