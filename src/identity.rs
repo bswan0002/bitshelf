@@ -42,3 +42,25 @@ pub fn discovered(shelf: &str, path: &Path) -> Result<String> {
     name(stem)?;
     Ok(format!("{shelf}/{stem}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn composed_and_decomposed_components_are_byte_exact() {
+        for shelf in ["caf\u{e9}", "cafe\u{301}"] {
+            for name in ["r\u{e9}sum\u{e9}", "re\u{301}sume\u{301}"] {
+                let id = format!("{shelf}/{name}");
+                let parsed = BitId::parse(&id).unwrap();
+                assert_eq!(parsed.shelf.as_bytes(), shelf.as_bytes());
+                assert_eq!(parsed.name.as_bytes(), name.as_bytes());
+                let file = format!("{name}.md");
+                assert_eq!(
+                    discovered(shelf, Path::new(&file)).unwrap().as_bytes(),
+                    id.as_bytes()
+                );
+            }
+        }
+    }
+}

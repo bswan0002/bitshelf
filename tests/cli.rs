@@ -1905,6 +1905,71 @@ fn discovered_ids_roundtrip_and_unsupported_entries_are_never_ids() {
 }
 
 #[test]
+fn unicode_normalization_preserves_ids_or_refuses_filesystem_collisions() {
+    let f = Fixture::new();
+    let composed = "caf\u{e9}";
+    let decomposed = "cafe\u{301}";
+    // Probe this filesystem, not the OS: mounted volumes can have different rules.
+    let probe = f.root.join(format!("{composed}.probe"));
+    fs::write(&probe, "probe").unwrap();
+    let equivalent = f.root.join(format!("{decomposed}.probe")).exists();
+    fs::remove_file(probe).unwrap();
+
+    // Exercise both spellings as the original name.
+    for (index, (first, second)) in [(composed, decomposed), (decomposed, composed)]
+        .into_iter()
+        .enumerate()
+    {
+        let shelf = format!("unicode{index}");
+        f.ok(&["shelf", "add", &shelf]);
+        let first = format!("{shelf}/{first}");
+        let second = format!("{shelf}/{second}");
+        f.ok(&["add", &first, "--title", "original"]);
+        let original = fs::read(f.bit_path(&first)).unwrap();
+        let save = f.run(&["add", &second, "--title", "other"]);
+        if equivalent {
+            assert_eq!(save.status.code(), Some(1));
+            assert_eq!(fs::read(f.bit_path(&first)).unwrap(), original);
+            assert_eq!(f.run(&["move", &first, &second]).status.code(), Some(1));
+            let source = format!("{shelf}/source");
+            f.ok(&["add", &source]);
+            let source_bytes = fs::read(f.bit_path(&source)).unwrap();
+            assert_eq!(f.run(&["move", &source, &second]).status.code(), Some(1));
+            assert_eq!(fs::read(f.bit_path(&source)).unwrap(), source_bytes);
+            assert_eq!(fs::read(f.bit_path(&first)).unwrap(), original);
+        } else {
+            assert!(save.status.success(), "{:?}", save);
+            let rows = f.json(&["list", &shelf, "--json"]);
+            let mut ids: Vec<_> = rows
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|row| row["id"].as_str().unwrap())
+                .collect();
+            ids.sort();
+            let mut expected = vec![first.as_str(), second.as_str()];
+            expected.sort();
+            assert_eq!(ids, expected);
+            for id in ids {
+                assert_eq!(
+                    f.ok(&["show", id]).stdout,
+                    fs::read(f.bit_path(id)).unwrap()
+                );
+                f.ok(&["edit", id, "--title", id]);
+            }
+            // A normalization-only move is ordinary when the destination is absent.
+            fs::remove_file(f.bit_path(&second)).unwrap();
+            let before = fs::read(f.bit_path(&first)).unwrap();
+            let moved = f.json(&["move", &first, &second, "--json"]);
+            assert_eq!(moved["id"].as_str().unwrap().as_bytes(), second.as_bytes());
+            assert!(!f.bit_path(&first).exists());
+            assert_eq!(fs::read(f.bit_path(&second)).unwrap(), before);
+            assert_eq!(f.json(&["list", &shelf, "--json"])[0]["id"], second);
+        }
+    }
+}
+
+#[test]
 fn shared_metadata_mutations_are_atomic_typed_and_destination_validated() {
     let f = Fixture::new();
     for (shelf, project) in [("source", "a"), ("destination", "b")] {
