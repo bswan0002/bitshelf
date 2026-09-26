@@ -5,7 +5,9 @@ description: Saves, finds, and retrieves deliberately kept material—notes, des
 
 # bitshelf
 
-Requires the `bs` executable (supported CLI: 0.1.x). Installing this skill does not install the executable. Check `bs --version` and use `bs --help` / subcommand help for syntax. If unavailable, ask the user to install it; do not invent a store location.
+Requires the `bs` executable (supported public CLI: 0.1.x; bundled version in VERSION). Use this skill from the same release archive/tag as the executable. Installing this skill does not install the executable. Check `bs --version` and use `bs --help` / subcommand help for syntax. If unavailable, ask the user to install it; do not invent a store location.
+
+List/search/shelf-list JSON is `{results, errors, complete}`. Read the `results` array and check both `complete` and exit status. Incomplete scans preserve healthy results but exit 1; do not treat omitted/inaccessible scope as empty. Search scores are implementation-defined ranking signals. External helper aliases own their output contract.
 
 ## Save or edit
 
@@ -13,7 +15,7 @@ Requires the `bs` executable (supported CLI: 0.1.x). Installing this skill does 
 2. **Before drafting or editing**, load `bs context SHELF --json`. Read the full guidance text and metadata requirements. Resolve guidance-relative paths against the returned shelf root `path`, not the working directory or `bits_path`. When guidance references a helper for this task, read its usage and prerequisites before preparing content. Missing guidance is explicit; unreadable context is an error, not permission to ignore it.
 3. Search for an existing relevant bit with `bs search QUERY --shelf SHELF --json`; retrieve candidates with `bs show ID --json` (add `--body` for body-only content). Prefer updating the same material over duplicating it when appropriate.
 4. Prepare content according to the user's request and shelf guidance. Preserve exact prompts verbatim when requested. Reusable code should include dependencies, call sites, integration assumptions, styling, and behavioral/accessibility details as relevant. A handoff is a selection for a fresh session, not a transcript summary: absent other guidance, include the task, relevant decisions, needed context (files, links, bit IDs), open questions, and next steps, and omit unrelated or explicitly excluded discussion.
-5. Choose a readable ID (`SHELF/bit-name`, without `.md`) and save with `bs add ID --file BODY_FILE --json`, optionally adding tags and `--title`. Titles are optional unless the shelf requires them; the ID is the display name. `--file -` or `--stdin` accepts an exact body. Input files contain the body, not frontmatter to merge. For existing bits, use `bs edit ID --file BODY_FILE --json` (or `--stdin`); use `--title` / `--tags` to replace those fields. The CLI preserves unrelated metadata and expiration. Timestamps are command-managed; no-op edits preserve dates. Direct filesystem edits leave dates to the user. No sync or persistent timestamp history exists. If a save reports publication or durability failure, inspect the destination before retrying; a save may already have occurred.
+5. Choose a readable ID (`SHELF/bit-name`, without `.md`) and save with `bs add ID --file BODY_FILE --json`, optionally adding tags and `--title`. Titles are optional unless the shelf requires them; the ID is the display name. `--file -` or `--stdin` accepts an exact body. Input files contain the body, not frontmatter to merge. For existing bits, use `bs edit ID --file BODY_FILE --json` (or `--stdin`); use `--title` / `--tags` to replace those fields. Shared `--set KEY=VALUE` assigns a literal string, `--set-json KEY=JSON` assigns a typed value, and `--unset KEY` removes a field. Never target automatic created/updated with these flags; duplicate/conflicting operations fail. The CLI preserves unrelated metadata and expiration. Timestamps are command-managed; no-op edits preserve dates. Direct filesystem edits leave dates to the user. No sync or persistent timestamp history exists. If a save reports publication or durability failure, inspect the destination before retrying; a save may already have occurred.
 6. Run `bs validate SHELF --json`. Check exit status as well as the JSON result. Report the saved identifier and any remaining validation errors.
 
 Use temporary shelves only when expiration is intended. Do not extend expiration automatically, overwrite on collisions, run cleanup as part of retrieval, or initialize/change the user's configuration without their request.
@@ -28,7 +30,7 @@ its guidance/requirements before moving. Preview with `bs move ID DESTINATION
 --dry-run --json` (or the configured move alias), then execute and validate the
 destination shelf. Report the new ID; old IDs stop resolving. Moves preserve
 expiration and refuse collisions. `--set KEY=VALUE` assigns strings; timestamps
-remain reserved. If diagnostics say the move completed but bookkeeping failed,
+remain reserved. Use `--tags` during a move when destination tag rules require replacement. Moves do not transport attachments or rewrite links. If diagnostics report partial publication or uncertain durability,
 inspect the destination before repeating the move. Inspect both
 paths when an interruption leaves two copies. Configure shelves/aliases only when
 requested; use the user's destination rather than assuming an archive shelf exists.

@@ -19,7 +19,7 @@ export default defineConfig({
     outline: { level: [2, 3], label: 'On this page' },
     docFooter: { prev: 'Previous', next: 'Next' },
     footer: {
-      message: 'Plain files on your own machine. Released under the MIT License.',
+      message: 'Development documentation (main). Use the docs bundled with your release for its exact contract.',
       copyright: '© 2026 Ben Swanson',
     },
     nav: [
@@ -35,6 +35,9 @@ export default defineConfig({
         { text: 'Get started', link: '/start' },
         { text: 'Using with agents', link: '/agents' },
         { text: 'Install', link: '/install' },
+        { text: 'Release matching', link: '/releases' },
+        { text: 'Compatibility', link: '/compatibility' },
+        { text: 'Platforms', link: '/platforms' },
       ]},
       { text: 'Recipes', items: [
         { text: 'Design docs ready for implementation', link: '/recipes/design-docs' },

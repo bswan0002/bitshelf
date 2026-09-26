@@ -33,7 +33,7 @@ bs edit notes/release-checklist --title 'New title' --tags release,checklist --j
 - With no mutation flags, `bs edit ID` opens a temporary draft in your editor and waits. The original is replaced only after the editor exits successfully, the metadata validates, and a check confirms the original didn't change concurrently. A failed edit keeps the draft and reports its path.
 - JSON mode requires explicit mutation flags and never launches an editor.
 
-Editing files directly in any editor is also supported. Markdown is authoritative: manage dates yourself for external edits. There is no watcher or sync .
+Editing files directly in any editor is also supported. Markdown is authoritative: manage dates yourself for external edits. There is no watcher or sync.
 
 ## Editors
 

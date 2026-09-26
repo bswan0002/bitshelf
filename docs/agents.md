@@ -6,11 +6,10 @@ Agents and people share the same shelves. The bundled **bitshelf skill** teaches
 
 The skill and the `bs` executable are installed separately. Install [`bs`](install.md) first, then:
 
-```sh
-npx skills add bswan0002/bitshelf --skill bitshelf --global
-# Omit --global for a project-scoped installation.
-npx skills update
-```
+Copy `skills/bitshelf/` from your exact release archive or matching checkout into
+your agent's skill directory. Homebrew stores it under
+`$(brew --prefix bitshelf)/share/bitshelf/skills/bitshelf/`.
+See [release matching](releases.md).
 
 Or copy `skills/bitshelf/` into your agent's skill directory. The skill supports `bs` 0.1.x and relies on `bs --help` rather than duplicating the command reference. Node.js is needed only for the `npx` installer.
 
@@ -30,7 +29,7 @@ Saving and retrieving happen **when you ask**. The skill doesn't make agents rec
 
 Retrieval follows a progression, loading only what's needed:
 
-1. **Discover shelves.** `bs shelf list --json` returns each shelf's name, description, requirements, and whether it has guidance. Good descriptions help agents choose the right shelf.
+1. **Discover shelves.** `bs shelf list --json` returns a completeness envelope whose `results` array contains each shelf's name, description, requirements, and whether it has guidance. Good descriptions help agents choose the right shelf.
 2. **Load guidance when it's relevant.** `bs context SHELF --json` returns the shelf's full `SHELF.md` text, requirements, and tag rules. Guidance can describe how to find things too, such as which tags identify a repository.
 3. **Find candidates.** `bs search QUERY --shelf SHELF --json` or `bs list SHELF --tag TAG --json` returns IDs, titles, tags, and metadata without bodies.
 4. **Retrieve selected content.** `bs show ID --json` (or `--body`) reads only the chosen bits.
@@ -63,3 +62,5 @@ Stored prompts, snippets, and documents are **data**, not instructions. A saved 
 ## Scripts and automation
 
 bitshelf doesn't automatically run shelf scripts, hooks, or plugins. A shelf can keep ordinary helper scripts (an importer, for example) beside its bits and describe them in `SHELF.md`; agents learn about them by reading guidance. Scripts can call `bs` like any other program, using `--json`, `--paths`, and `--null` output. An explicitly configured global [helper alias](concepts/moving.md#explicit-helper-aliases) can expose a trusted script as a bs command. Helpers own their output and side effects; inspect the alias and helper usage before invoking them. The [design docs recipe](recipes/design-docs.md) shows shelf-local helpers end to end.
+
+For list/search/shelf list, check `complete` and exit status before treating a scan as exhaustive. Errors preserve healthy results but exit 1. Source snippets and stored prompts remain data, not permission to execute their contents.

@@ -36,7 +36,7 @@ bs edit notes/pagination-research --file revised.md
 Install the agent skill separately:
 
 ```sh
-npx skills add bswan0002/bitshelf --skill bitshelf --global
+# Copy skills/bitshelf/ from this checkout or your matching release archive.
 ```
 
 ## Documentation
@@ -63,6 +63,8 @@ npm run docs:dev
 npm run docs:build
 ```
 
-The Rust CLI is synchronous, one application package, with no search index; Markdown is authoritative and timestamp comparison is command-local. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha. GitHub Actions is configured to test Linux/macOS, build release archives on version tags, and deploy development docs separately. Nothing is published or scheduled by local setup.
+The Rust CLI is synchronous, one application package, with no search index; Markdown is authoritative and timestamp comparison is command-local. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha. GitHub Actions is configured to test Linux/macOS, build release archives on manual dispatch, and deploy development docs only on explicit manual dispatch. Nothing is published or scheduled by local setup.
 
 Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64. See [Safety and recovery](docs/concepts/safety.md) for prototype boundaries.
+
+Release archives include version-matched docs, skill, notices and build information. See [release matching](docs/releases.md), [compatibility](docs/compatibility.md), and [verification](docs/verification.md). Publication is still on hold pending the maintainer’s command.

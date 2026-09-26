@@ -80,6 +80,9 @@ jobs:
           cp "target/$TARGET/release/bs" dist/bs.1 LICENSE README.md THIRD_PARTY_NOTICES.txt staging/
           cp licenses/inventory.json staging/DEPENDENCIES.json
           cp -R dist/completions skills staging/
+          mkdir staging/docs
+          git ls-files -z docs | tar --null -T - -cf - | tar -xf - -C staging
+          cp CHANGELOG.md staging/
           python3 scripts/build-info.py "$TARGET" > staging/BUILD-INFO.json
           tar -czf "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" -C staging .
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

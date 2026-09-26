@@ -40,7 +40,7 @@ Results default to descending relevance, with identifier as the tie-breaker. Eac
 
 JSON results include `matches.fields` (which fields matched positive terms) and `matches.score`; bodies are omitted. Use these signals to choose candidates, then `bs show` to read them. Exclusion-only results have empty match fields and score 0. See the [JSON contract](../json.md).
 
-A search with no matches succeeds with empty text output or JSON `[]`. There's no search index, dependency, or daemon; every search reads the current files.
+A search with no matches succeeds with empty text output or JSON `{results: [], errors: [], complete: true}`. There's no search index, dependency, or daemon; every search reads the current files.
 
 ## Discovery
 
