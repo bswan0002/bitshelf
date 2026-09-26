@@ -27,7 +27,7 @@ release-workflow gates; neither has been run locally. No synthetic Linux archive
 or checksum was used as installation evidence. The local two-target checksum set
 is intentionally insufficient for production publication.
 
-## Final candidate revision checks
+## Candidate revision checks (ticket 28)
 
 The revised 0.1.0 candidate passed locally on macOS 15.7.4 ARM64:
 
@@ -65,3 +65,29 @@ Native Intel/Linux source and package runs, the Linux MSRV job, and a quarantine
 browser download have not been executed locally. Signing remains deferred;
 `spctl --assess` rejected the ad-hoc-signed candidate during preparation. No push,
 tag, workflow dispatch, release publication or website deployment was performed.
+
+## Strict CLI parsing follow-up (ticket 29)
+
+The flag-typo issue was reproduced before the fix in an isolated temporary store:
+`shelf add --bogus` and `add --bogus/x --stdin` both created content and exited 0.
+After the fix, the regression matrix verifies unknown long/short/attached options
+exit 2 across built-ins and built-in aliases, with a recursive filesystem snapshot
+unchanged after each failure. Explicit `--` operands and `--shelf=-notes` work;
+ID-alias substitution preserves positional and option-value roles, including
+flag-looking names. External helper argv remains literal on both sides of `--`.
+Validation help now explains its all-shelves scope; validation/prune retain their
+per-item arrays, including failure outcomes.
+
+Local macOS 15.7.4 ARM64 verification passed again: formatting, locked build,
+warnings-denied Clippy and all **103 Rust tests** on both 1.98.1 and 1.91.0;
+generated-reference drift check, npm install/docs build, 13 release/formula/tap
+script tests, workflow lint and notices checks. Newly built ARM and Intel archives
+passed isolated extraction/smoke checks (Intel under Rosetta). Their actual local
+checksums passed Homebrew install/test/revision-upgrade/test/uninstall; the temporary
+tap was removed. The installed executable and skill were refreshed together after
+read-only real-store validation/listing, ticket-helper and archive-alias dry-run
+checks; all seven shelf-helper tests passed.
+
+Native Intel/Linux and fresh-machine published-tap checks remain release gates.
+No push, tag, workflow dispatch or deployment occurred. Handoff retention was
+configured separately by the maintainer and was not modified by this work.
