@@ -16,6 +16,8 @@ pub struct Bit {
     #[serde(skip)]
     pub body: String,
     #[serde(skip)]
+    pub raw: String,
+    #[serde(skip)]
     pub expires: Option<DateTime<Utc>>,
 }
 pub fn parse(raw: &str) -> Result<(Mapping, &str)> {
@@ -139,6 +141,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         metadata: Value::Object(map.clone()),
         errors,
         body: body.to_string(),
+        raw: raw.to_string(),
         expires,
     }
 }

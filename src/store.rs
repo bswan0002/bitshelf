@@ -222,6 +222,7 @@ impl Store {
                             metadata: serde_json::Value::Null,
                             errors: vec![err.to_string()],
                             body: String::new(),
+                            raw: String::new(),
                             expires: None,
                         });
                     }

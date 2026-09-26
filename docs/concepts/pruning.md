@@ -59,3 +59,5 @@ bs prune --dry-run            # all shelves, same rules
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.bitshelf.prune.plist   # load
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/local.bitshelf.prune.plist     # remove
 ```
+
+Prune captures each candidate's original bytes, then checks them immediately before removal and rechecks shelf retention. A changed body or expiration is skipped, even if it still appears expired. Results include all earlier successful removals on partial failure. `skipped` includes an error; `removed_with_error` means unlink succeeded but directory durability could not be confirmed. Both exit 1. Inspect outcomes before retrying; no rollback is implied.

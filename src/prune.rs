@@ -66,9 +66,14 @@ pub fn run(
     store: &crate::store::Store,
     c: crate::cli::Prune,
 ) -> anyhow::Result<(Vec<serde_json::Value>, bool)> {
-    use anyhow::Context;
+    run_with(store, c, |_| {})
+}
+fn run_with(
+    store: &crate::store::Store,
+    c: crate::cli::Prune,
+    mut before_remove: impl FnMut(&Bit),
+) -> anyhow::Result<(Vec<serde_json::Value>, bool)> {
     use serde_json::json;
-    use std::fs;
     let _lock = if c.dry_run {
         None
     } else {
@@ -79,23 +84,89 @@ pub fn run(
     let mut results = vec![];
     let mut failed = false;
     for b in bits {
-        let shelf = b.id.split('/').next().unwrap();
-        match decide(&b, &store.settings(shelf)?, now) {
-            Decision::Keep => continue,
-            Decision::Skip(error) => {
-                eprintln!("warning: {}: {error}; skipped", b.id);
-                results.push(json!({"id":b.id,"path":b.path,"status":"skipped","error":error}));
-                failed = true;
-                continue;
+        let operation = (|| -> anyhow::Result<Option<&str>> {
+            let shelf = b.id.split('/').next().unwrap();
+            match decide(&b, &store.settings(shelf)?, now) {
+                Decision::Keep => return Ok(None),
+                Decision::Skip(error) => anyhow::bail!(error),
+                Decision::Remove => (),
             }
-            Decision::Remove => (),
+            before_remove(&b);
+            store.safe(&b.path)?;
+            crate::filesystem::unchanged(&b.path, b.raw.as_bytes())?;
+            // Re-read settings as well: disabling retention must stop deletion.
+            anyhow::ensure!(
+                decide(&b, &store.settings(shelf)?, now) == Decision::Remove,
+                "retention changed during prune"
+            );
+            if c.dry_run {
+                return Ok(Some("would_remove"));
+            }
+            crate::filesystem::remove(&b.path, b.raw.as_bytes())?;
+            Ok(Some("removed"))
+        })();
+        match operation {
+            Ok(None) => (),
+            Ok(Some(status)) => results.push(json!({"id":b.id,"path":b.path,"status":status})),
+            Err(error) => {
+                failed = true;
+                let status = if !c.dry_run && error.to_string().contains("was removed, but") {
+                    "removed_with_error"
+                } else {
+                    "skipped"
+                };
+                results.push(
+                    json!({"id":b.id,"path":b.path,"status":status,"error":format!("{error:#}")}),
+                );
+            }
         }
-        store.safe(&b.path)?;
-        if !c.dry_run {
-            fs::remove_file(&b.path)
-                .with_context(|| format!("cannot remove {}", b.path.display()))?;
-        }
-        results.push(json!({"id":b.id,"path":b.path,"status":if c.dry_run {"would_remove"} else {"removed"}}));
     }
     Ok((results, failed))
+}
+
+#[cfg(test)]
+mod operation_tests {
+    use super::*;
+    #[test]
+    fn changed_expiry_body_and_partial_failure_are_retained() {
+        use std::fs;
+        let temp = tempfile::tempdir().unwrap();
+        let store = crate::store::Store {
+            config: crate::config::Config {
+                store: temp.path().into(),
+                editor: None,
+                aliases: Default::default(),
+            },
+        };
+        fs::create_dir_all(temp.path().join("tmp/bits")).unwrap();
+        fs::write(temp.path().join("tmp/bs.toml"), "retention = '1d'").unwrap();
+        let raw = "---\nexpires: '2000-01-01T00:00:00Z'\n---\nbody";
+        for name in ["a", "body", "expiry", "remove-expiry", "failure"] {
+            store.write_bit(&format!("tmp/{name}"), raw).unwrap();
+        }
+        let (rows, failed) = run_with(
+            &store,
+            crate::cli::Prune {
+                shelf: None,
+                dry_run: false,
+            },
+            |b| match b.id.as_str() {
+                "tmp/body" => fs::write(&b.path, format!("{raw}changed")).unwrap(),
+                "tmp/expiry" => fs::write(&b.path, raw.replace("2000", "2099")).unwrap(),
+                "tmp/remove-expiry" => fs::write(&b.path, "body").unwrap(),
+                "tmp/failure" => {
+                    crate::filesystem::inject(&b.path, crate::filesystem::Stage::Remove)
+                }
+                _ => (),
+            },
+        )
+        .unwrap();
+        assert!(failed);
+        assert_eq!(rows.len(), 5);
+        assert_eq!(rows[0]["status"], "removed");
+        for row in &rows[1..] {
+            assert_eq!(row["status"], "skipped");
+            assert!(std::path::Path::new(row["path"].as_str().unwrap()).exists());
+        }
+    }
 }
