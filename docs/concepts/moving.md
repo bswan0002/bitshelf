@@ -1,6 +1,4 @@
-# Moving and aliases
-
-## Moving
+# Moving bits
 
 ```sh
 bs move notes/checklist projects                    # keep the name; shelf must exist
@@ -23,32 +21,12 @@ The destination is a shelf (keeping the bit name) or a complete `shelf/name` ID.
 
 For how moves are written and recovered after interruption, see [Safety and recovery](safety.md#interrupted-moves).
 
-## Aliases
+## Archive workflows
 
-Archive is a configured workflow, not a built-in command:
-
-```toml
-[aliases.archive]
-argv = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
-description = "Move a bit into archive, preserving its original ID in metadata"
-usage = "archive ID [--dry-run] [--json]"
-examples = ["bs archive notes/checklist --dry-run --json"]
-```
-
-Discover with `bs aliases --json`; inspect with `bs aliases show archive --json`.
-`bs aliases dry-run archive -- notes/checklist` previews the invocation without
-executing the move. `bs archive notes/checklist --dry-run --json` invokes the
-move's own validation and preview.
-
-See [Aliases and extensions](extensions.md) for argv shortcuts, shell recipes,
-structured descriptions, and automatic `bs-*` executable discovery. See
-[Archive without deleting](../recipes/archive.md) for the workflow in context.
-
-### Explicit helper aliases
-
-Trusted external programs can be registered with `exec = ["program", "fixed-arg"]`.
-See the [helper configuration and execution contract](extensions.md#explicit-helpers).
-Shelf files do not register or execute helpers automatically.
+Archive is a configured workflow, not a built-in command. Follow
+[Archive without deleting](../recipes/archive.md) to set up an archive shelf and
+an alias that moves bits there. See [Extending bitshelf](extensions.md) to learn
+how command shortcuts, shell recipes, and external helpers work.
 
 ## References and auxiliary files
 

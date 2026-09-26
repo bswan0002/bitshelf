@@ -81,4 +81,5 @@ Restoring follows the same rules as any move: the destination shelf's requiremen
 - Archiving an already archived bit is just another move and replaces `moved_from`.
 - Moving changes the ID, and references to the old ID aren't rewritten.
 
-See [Moving and aliases](../concepts/moving.md) for complete move and alias behavior.
+See [Moving bits](../concepts/moving.md) for move behavior and
+[Extending bitshelf](../concepts/extensions.md) for alias configuration.

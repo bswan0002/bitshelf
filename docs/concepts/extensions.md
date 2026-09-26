@@ -1,24 +1,60 @@
-# Aliases and extensions
+# Extending bitshelf
 
-Extend `bs` without adding built-ins. Invocation resolves **built-in → configured alias → `bs-NAME` executable on PATH**. Within PATH, the first executable wins. Configured names cannot shadow built-ins. Names use lowercase ASCII letters, digits, and hyphens, and cannot start with a hyphen.
+Make common workflows your own commands: `bs recent` to find fresh material,
+`bs archive` to put finished work away, or `bs tickets` to run your own script.
+Aliases and extensions let you customize `bs` without adding built-ins.
 
-Aliases live in the global configuration only. Shelves and repository files never register commands or trigger execution. Extensions run only when invoked; treat their definitions and executables as trusted code. Their presence is not permission to run them for an unrelated task.
+Choose the smallest mechanism that fits:
 
-## Discover and inspect
+| Mechanism                                        | Use it for                                                                   | Defined in                              |
+| ------------------------------------------------ | ---------------------------------------------------------------------------- | --------------------------------------- |
+| [Command shortcuts](#built-in-argv-shortcuts)    | A built-in command with saved arguments, such as `bs recent` or `bs archive` | Global config: an array or `argv` table |
+| [Shell recipes](#shell-recipes)                  | Pipelines and small parameterized workflows                                  | Global config: a string or `run` table  |
+| [Explicit helpers](#explicit-helpers)            | A script or executable, optionally with fixed arguments                      | Global config: an `exec` table          |
+| [PATH commands](#automatic-executable-discovery) | Standalone commands that need no alias registration                          | An executable named `bs-NAME` on PATH   |
 
-```sh
-bs --help                                  # built-ins plus available extensions
-bs aliases                                 # name, kind, description
-bs aliases --json                          # structured catalog keyed by name
-bs aliases show last --json                # definition, interface, origin
-bs aliases dry-run last --json -- notes --count=20
+All four run when you invoke them as `bs NAME`. There are no automatic lifecycle
+hooks. Use a shortcut for a single built-in, a recipe when you need shell
+composition, and an external program when the workflow deserves its own script.
+
+## Your first alias
+
+Add this to your global configuration, normally
+`~/.config/bitshelf/config.toml` (or `$XDG_CONFIG_HOME/bitshelf/config.toml`
+when that variable is an absolute path):
+
+```toml
+[aliases.recent]
+argv = ["list", "--sort", "created", "--reverse"]
+description = "List bits newest-created first"
+usage = "recent [SHELF] [LIST_OPTIONS...]"
+examples = ["bs recent notes", "bs recent notes --json"]
 ```
 
-Listing, showing, and previewing **never execute an extension**, including its `--help`. They work before store initialization. Missing config means no configured aliases; PATH discovery still works. Unreadable or invalid existing config is an error for inspection/invocation; top-level help warns and still displays built-in help and PATH extensions.
+Keep your existing configuration and add the table only once. If `recent` already
+exists, edit its definition rather than adding another one. Aliases live in the
+**global config**, not a shelf's `bs.toml`.
 
-`dry-run` renders the exact executable, argv, environment overrides, and (for recipes) shell command. Put preview arguments after `--`. The inspector's own `--json` controls preview output; put a target `--json` after the separator. This previews invocation, not the program's internal behavior or side effects. It does not check that a move destination exists, for example. A target's own `--dry-run` is separate and may execute code.
+Now use it just like a command:
 
-`show` includes descriptions, usage, examples, implementation (`argv`, `exec`, or `run`), origin, and recipe parameters/defaults. Usage and examples are documentation, not an argument parser or a safety guarantee. Missing descriptions are explicit. See the [JSON contract](../json.md).
+```sh
+bs recent notes          # newest-created notes first
+bs recent notes --json   # the same list, as JSON
+```
+
+This runs `bs list --sort created --reverse notes`, appending your arguments
+without a shell. The description makes the shortcut recognizable in `bs --help`
+and `bs aliases`.
+
+You can inspect it before running it:
+
+```sh
+bs aliases show recent
+bs aliases dry-run recent -- notes --json
+```
+
+Neither inspection command executes the alias. For a shortcut that takes a bit
+ID and constructs a destination, see [Archive without deleting](../recipes/archive.md).
 
 ## Built-in argv shortcuts
 
@@ -72,21 +108,21 @@ bs last notes
 bs last notes --count=20
 ```
 
-The template language deliberately supports only `{{ variable }}`:
+The template language deliberately supports only <code v-pre>{{ variable }}</code>:
 
-| Variable | Value |
-| --- | --- |
-| `args` | Remaining arguments, individually shell-escaped and space-joined |
-| `store_path` | Resolved store directory |
-| `config_path` | Absolute active configuration path |
-| `bs_executable` | Current executable path |
-| Any other name | A named parameter supplied as `--name=VALUE`, or its configured default |
+| Variable        | Value                                                                   |
+| --------------- | ----------------------------------------------------------------------- |
+| `args`          | Remaining arguments, individually shell-escaped and space-joined        |
+| `store_path`    | Resolved store directory                                                |
+| `config_path`   | Absolute active configuration path                                      |
+| `bs_executable` | Current executable path                                                 |
+| Any other name  | A named parameter supplied as `--name=VALUE`, or its configured default |
 
 Variable names use ASCII letters, digits, and underscores and cannot begin with a digit. `config` is unavailable as a parameter because `--config` selects bs configuration; use `config_path` for context. Parameters are discovered from the template. Defaults must be strings and may only name referenced, non-context parameters. Missing required values fail before any shell execution. Repeated bindings use the last value. The engine does not validate parameter types: a numeric count is the recipe's responsibility.
 
 `--KEY=VALUE` binds when KEY is a referenced user parameter; otherwise it forwards into `args`. `--KEY VALUE` is not binding syntax. `--` is removed and all following tokens forward literally, bypassing binding. Context variables cannot be overridden by arguments. There is no implicit current shelf.
 
-**Place placeholders unquoted in shell argument positions.** Each value is already shell-escaped, including paths. For example, use `printf '%s\n' {{ label }}`, not `printf '%s\n' "{{ label }}"`. Trusted recipe authors must not place substitutions in shell quotes, comments, heredocs, arithmetic, or other code contexts, or re-evaluate supplied values with `eval`/`sh -c`. Escaping preserves data arguments; it is not a sandbox for arbitrary shell programs. Templates are rendered once; there are no filters, indexing, loops, raw blocks, or multi-step pipeline tables.
+**Place placeholders unquoted in shell argument positions.** Each value is already shell-escaped, including paths. For example, use <code v-pre>printf '%s\n' {{ label }}</code>, not <code v-pre>printf '%s\n' "{{ label }}"</code>. Trusted recipe authors must not place substitutions in shell quotes, comments, heredocs, arithmetic, or other code contexts, or re-evaluate supplied values with `eval`/`sh -c`. Escaping preserves data arguments; it is not a sandbox for arbitrary shell programs. Templates are rendered once; there are no filters, indexing, loops, raw blocks, or multi-step pipeline tables.
 
 ### Shell and process contract
 
@@ -133,3 +169,30 @@ This sidecar contains documentation only, not executable definitions or configur
 - `bs HELPER --help` **executes the helper**. Use `bs aliases show HELPER` for safe inspection instead.
 
 There are no automatic lifecycle hooks, repo-config approvals, or sandboxing. Dynamic extension-name/argument completion is not implemented; built-in completion continues to work. For larger workflows, use an external script rather than growing shell templates into an orchestration system.
+
+## Resolution and configuration
+
+Invocation resolves **built-in → configured alias → `bs-NAME` executable on PATH**.
+Within PATH, the first executable wins. Configured names cannot shadow built-ins.
+Names use lowercase ASCII letters, digits, and hyphens, and cannot start with a
+hyphen.
+
+Aliases live in the global configuration only. Shelves and repository files never
+register commands or trigger execution. Treat extension definitions and executables
+as trusted code; their presence is not permission to run them for an unrelated task.
+
+## Discover and inspect
+
+```sh
+bs --help                                  # built-ins plus available extensions
+bs aliases                                 # name, kind, description
+bs aliases --json                          # structured catalog keyed by name
+bs aliases show last --json                # definition, interface, origin
+bs aliases dry-run last --json -- notes --count=20
+```
+
+Listing, showing, and previewing **never execute an extension**, including its `--help`. They work before store initialization. Missing config means no configured aliases; PATH discovery still works. Unreadable or invalid existing config is an error for inspection/invocation; top-level help warns and still displays built-in help and PATH extensions.
+
+`dry-run` renders the exact executable, argv, environment overrides, and (for recipes) shell command. Put preview arguments after `--`. The inspector's own `--json` controls preview output; put a target `--json` after the separator. This previews invocation, not the program's internal behavior or side effects. It does not check that a move destination exists, for example. A target's own `--dry-run` is separate and may execute code.
+
+`show` includes descriptions, usage, examples, implementation (`argv`, `exec`, or `run`), origin, and recipe parameters/defaults. Usage and examples are documentation, not an argument parser or a safety guarantee. Missing descriptions are explicit. See the [JSON contract](../json.md).
