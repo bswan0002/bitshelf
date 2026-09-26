@@ -32,10 +32,12 @@ Search's `matches.fields` lists positive-term matches in stable order: `id`, `ti
 
 Validation and prune may emit a complete result document and still exit 1. Operational/usage errors outside per-item results emit only stderr (no partial JSON). An error can occur after a file was saved; diagnostics distinguish saved bits with failed durability from unsuccessful saves. Inspect the destination and follow the recovery instructions instead of blindly retrying creation. Always check exit status. Editor stdout is redirected to stderr in JSON mode. Interactive flags are incompatible with JSON. Completion prints shell source, not JSON, and rejects `--json`.
 
+Unknown options fail with exit 2 before content operations; hyphen-prefixed positional operands require `--` (see [identifiers](concepts/identifiers.md)).
+
 Exit codes: **0** success (including no search matches and quietly closed output pipes), **2** CLI usage errors, **1** operational or validation failures.
 
 `edit.changed` compares the current source and candidate body/user metadata, excluding created/updated and YAML formatting. Read-only commands do not change dates. Missing imported dates stay missing on no-ops and plain moves. See [timestamps](concepts/timestamps.md). `list --sort created|updated --reverse` sorts parsed dates, missing/invalid last, with deterministic ID tie-breaking.
 
-`discoverable` defaults to true. Default list/search omit shelves where it is false; `--all` or an explicit shelf includes them. Maintenance commands still include these shelves. Move dry runs return the planned destination without writing. Built-in aliases return their target command’s JSON result and exit status. Explicit helper aliases forward `--json` and preserve exit status, but the helper owns its output contract; bs does not enforce JSON output for arbitrary executables.
+`discoverable` defaults to true. Default list/search omit shelves where it is false; `--all` or an explicit shelf includes them. Maintenance commands still include these shelves. `validate` without a shelf checks all shelves, including non-discoverable ones; it has no `--all` option. Validation/prune keep per-item arrays because each row reports an item or scope outcome; check exit status as well as rows. Move dry runs return the planned destination without writing. Built-in aliases return their target command’s JSON result and exit status. Explicit helper aliases forward `--json` and preserve exit status, but the helper owns its output contract; bs does not enforce JSON output for arbitrary executables.
 
 See [compatibility](compatibility.md) for incomplete discovery and release boundaries.

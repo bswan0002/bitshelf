@@ -3,7 +3,7 @@ use usage::{Args, Cli, Subcommands};
 
 /// A local Markdown-first store for reusable bits
 #[derive(Cli)]
-#[usage(bin = "bs", version, completion)]
+#[usage(bin = "bs", version, completion, unknown_flags = "error")]
 pub struct Bs {
     /// Override the XDG configuration file
     #[usage(long, global)]
@@ -202,7 +202,8 @@ pub struct Context {
     #[usage(complete = complete_context)]
     pub shelf: String,
 }
-/// Validate metadata without changing files
+/// Validate metadata without changing files; without SHELF, check all shelves,
+/// including those excluded from discovery
 #[derive(Args)]
 pub struct Filter {
     #[usage(complete = complete_filter)]

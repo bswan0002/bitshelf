@@ -2177,3 +2177,153 @@ fn first_release_fixture_preserves_contract_and_rejects_unknown_config() {
         bytes
     );
 }
+
+#[test]
+fn unknown_flags_are_usage_errors_before_any_store_changes() {
+    fn snapshot(path: &std::path::Path) -> std::collections::BTreeMap<PathBuf, Option<Vec<u8>>> {
+        let mut entries = std::collections::BTreeMap::new();
+        for entry in fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                entries.insert(path.clone(), None);
+                entries.extend(snapshot(&path));
+            } else {
+                entries.insert(path.clone(), Some(fs::read(&path).unwrap()));
+            }
+        }
+        entries
+    }
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "notes", "--retention", "1d"]);
+    f.write(
+        "notes/source",
+        "---\nexpires: 2000-01-01T00:00:00Z\n---\nkeep",
+    );
+    let config = fs::read_to_string(&f.config).unwrap();
+    fs::write(
+        &f.config,
+        format!(
+            "{config}\n[aliases]\nrecent = ['list']\narchive = ['move', '{{id}}', 'notes/dest']\n"
+        ),
+    )
+    .unwrap();
+    let before = snapshot(f._temp.path());
+    for flag in ["--bogus", "--jsno", "--bogus=x", "-z"] {
+        for mut args in [
+            vec!["init"],
+            vec!["shelf", "list"],
+            vec!["shelf", "add"],
+            vec!["add"],
+            vec!["edit", "notes/source"],
+            vec!["show", "notes/source"],
+            vec!["move", "notes/source", "notes/dest"],
+            vec!["open"],
+            vec!["list"],
+            vec!["search", "keep"],
+            vec!["validate"],
+            vec!["context"],
+            vec!["prune"],
+            vec!["aliases"],
+            vec!["completion"],
+            vec!["recent"],
+            vec!["archive", "notes/source"],
+        ] {
+            args.push(flag);
+            let out = f.run(&args);
+            assert_eq!(out.status.code(), Some(2), "{args:?}: {:?}", out);
+            assert!(out.stdout.is_empty(), "{args:?}");
+            assert!(!String::from_utf8_lossy(&out.stderr).contains("create it with"));
+            assert_eq!(
+                snapshot(f._temp.path()),
+                before,
+                "{args:?} modified the store"
+            );
+        }
+    }
+    for args in [
+        vec!["validate", "--all"],
+        vec!["add", "--bogus/x", "--stdin"],
+        vec!["search", "keep", "--shelf", "--bogus"],
+    ] {
+        assert_eq!(f.run(&args).status.code(), Some(2), "{args:?}");
+        assert_eq!(snapshot(f._temp.path()), before);
+    }
+}
+
+#[test]
+fn hyphen_operands_require_separator_but_explicit_option_values_work() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "--", "-notes"]);
+    f.ok(&["add", "--title=-title", "--", "-notes/-bit"]);
+    f.ok(&["show", "--", "-notes/-bit"]);
+    f.ok(&["edit", "--title=-edited", "--", "-notes/-bit"]);
+    assert_eq!(
+        f.json(&["list", "--json", "--", "-notes"])[0]["title"],
+        "-edited"
+    );
+    assert_eq!(
+        f.json(&["search", "bit", "--shelf=-notes", "--json"])[0]["id"],
+        "-notes/-bit"
+    );
+    f.ok(&["context", "--", "-notes"]);
+    f.ok(&["validate", "--", "-notes"]);
+    f.ok(&["prune", "--dry-run", "--", "-notes"]);
+    f.ok(&["open", "--", "-notes/-bit"]);
+    f.ok(&["move", "--", "-notes/-bit", "-notes/-moved"]);
+    f.ok(&["show", "--", "-notes/-moved"]);
+    f.ok(&["add", "notes/-ordinary"]); // The full operand does not start with '-'.
+    let out = f.run(&["list", "--", "-absent"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(!String::from_utf8_lossy(&out.stderr).contains("create it with"));
+}
+
+#[test]
+fn aliases_preserve_literal_hyphen_ids_and_expanded_option_values() {
+    let f = Fixture::new();
+    let config = fs::read_to_string(&f.config).unwrap();
+    fs::write(&f.config, format!("{config}\n[aliases]\narchive = ['move', '{{id}}', 'notes/{{name}}', '--set', 'moved_from={{id}}', '--title', '{{name}}']\nview = ['show']\nlookup = ['search', '{{name}}', '--shelf', '{{shelf}}']\n")).unwrap();
+    f.ok(&["shelf", "add", "--", "-notes"]);
+    for name in ["-bit", "--json", "--"] {
+        let id = format!("-notes/{name}");
+        f.ok(&["add", "--", &id]);
+        f.ok(&["view", "--", &id]);
+        if name == "--json" {
+            assert_eq!(f.json(&["lookup", "--json", "--", &id])[0]["id"], id);
+        }
+        assert_eq!(f.run(&["archive", &id]).status.code(), Some(2));
+        f.ok(&["archive", "--json", "--dry-run", "--", &id]);
+        f.ok(&["show", "--", &id]);
+        let row = f.json(&["archive", "--json", "--", &id]);
+        assert_eq!(row["id"], format!("notes/{name}"));
+        let rows = f.json(&["list", "notes", "--json"]);
+        let moved = rows
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == row["id"])
+            .unwrap();
+        assert_eq!(moved["metadata"]["moved_from"], id);
+        assert_eq!(moved["title"], name);
+    }
+}
+
+#[test]
+fn validate_help_explains_all_shelves_and_maintenance_keeps_arrays() {
+    let f = Fixture::new();
+    let help = String::from_utf8(f.ok(&["validate", "--help"]).stdout).unwrap();
+    assert!(help.contains("all shelves"));
+    assert!(help.contains("excluded from discovery"));
+    fs::write(f.root.join("notes/bs.toml"), "discoverable = false\n").unwrap();
+    f.write("notes/invalid", "---\ntags: 42\n---\nbody");
+    let out = f.run(&["validate", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(rows.as_array().unwrap().len(), 1);
+    assert_eq!(rows[0]["id"], "notes/invalid");
+    assert_eq!(rows[0]["valid"], false);
+    let out = f.run(&["prune", "--dry-run", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert!(rows.is_array());
+    assert_eq!(rows[0]["status"], "skipped");
+}

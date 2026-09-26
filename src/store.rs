@@ -108,11 +108,11 @@ impl Store {
         config::name(name)?;
         let p = self.config.store.join(name);
         self.safe(&p)?;
-        if exists {
-            ensure!(
-                p.is_dir(),
-                "missing shelf {name}; create it with bs shelf add {name}"
-            );
+        if exists && !p.is_dir() {
+            if name.starts_with('-') {
+                anyhow::bail!("missing shelf {name}");
+            }
+            anyhow::bail!("missing shelf {name}; create it with bs shelf add -- {name}");
         }
         Ok(p)
     }

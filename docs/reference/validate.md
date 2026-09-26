@@ -3,7 +3,7 @@
 
 - **Usage:** `bs validate [SHELF]`
 
-Validate metadata without changing files
+Validate metadata without changing files; without SHELF, check all shelves, including those excluded from discovery
 
 ## Arguments
 - **`[SHELF]`**

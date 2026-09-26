@@ -148,3 +148,21 @@ fn helper_exit_status_and_spawn_errors_are_preserved() {
         String::from_utf8_lossy(&output.stderr).contains("cannot execute helper alias missing")
     );
 }
+
+#[test]
+fn helper_unknown_flags_are_forwarded_literally_on_both_sides_of_separator() {
+    let f = Fixture::new();
+    let args = [
+        "--jsno",
+        "-z",
+        "--bogus=x",
+        "--",
+        "-notes/bit",
+        "--config=literal",
+    ];
+    let mut command = vec!["tickets"];
+    command.extend(args);
+    let out = f.run(&command);
+    assert!(out.status.success(), "{out:?}");
+    assert_eq!(&f.logged()[5..], args);
+}

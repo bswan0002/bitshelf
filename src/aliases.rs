@@ -92,6 +92,55 @@ pub fn validate(aliases: &BTreeMap<String, Alias>) -> Result<()> {
     Ok(())
 }
 
+/// Bind the trusted template before substitution so an ID cannot become an option.
+/// Use the CLI's own grammar, not a second list of flags and their arities.
+fn expand_template(template: &[String], id: &str, forwarded: &[OsString]) -> Result<Vec<OsString>> {
+    let argv: Vec<_> = template.iter().map(|s| s.as_ref()).collect();
+    let mut options = Vec::new();
+    let mut operands = Vec::new();
+    let mut parser = usage::Parser::new(crate::cli::Bs::command(), &argv);
+    while let Some(event) = parser.next_event() {
+        let event =
+            event.map_err(|e| crate::UsageError(format!("invalid alias arguments: {e:?}")))?;
+        match event {
+            usage::Event::Command(command) => options.push(command.name.into()),
+            usage::Event::Flag {
+                flag,
+                value,
+                negated,
+            } => {
+                let name = if negated {
+                    format!(
+                        "--{}",
+                        flag.negate.context("alias flag has no negated form")?
+                    )
+                } else if let Some(long) = flag.longs.first() {
+                    format!("--{long}")
+                } else {
+                    format!(
+                        "-{}",
+                        char::from(*flag.shorts.first().context("alias flag has no name")?)
+                    )
+                };
+                options.push(match value {
+                    Some(value) => {
+                        format!("{name}={}", expand(std::str::from_utf8(value)?, id)?).into()
+                    }
+                    None => name.into(),
+                });
+            }
+            usage::Event::Arg { value, .. } => {
+                operands.push(expand(std::str::from_utf8(value)?, id)?.into());
+            }
+            _ => anyhow::bail!("unsupported alias template binding"),
+        }
+    }
+    options.extend_from_slice(forwarded);
+    options.push("--".into());
+    options.extend(operands);
+    Ok(options)
+}
+
 /// Intercept only a top-level alias, leaving built-in parsing and completion intact.
 pub fn dispatch() -> Result<()> {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
@@ -225,14 +274,18 @@ pub fn dispatch() -> Result<()> {
         forwarded = args[index + 1..].to_vec();
         ""
     };
-    let expanded = template
-        .iter()
-        .map(|s| expand(s, id))
-        .collect::<Result<Vec<_>>>()?;
+    let expanded: Vec<OsString> = if templated {
+        expand_template(template, id, &forwarded)?
+    } else {
+        template
+            .iter()
+            .map(OsString::from)
+            .chain(forwarded)
+            .collect()
+    };
     let status = std::process::Command::new(std::env::current_exe()?)
         .args(&args[..index])
         .args(expanded)
-        .args(forwarded)
         .status()
         .context("cannot execute alias")?;
     std::process::exit(status.code().unwrap_or(1));

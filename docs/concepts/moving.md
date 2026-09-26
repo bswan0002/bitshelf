@@ -35,7 +35,7 @@ archive = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
 
 **Plain aliases** append your arguments unchanged: `bs recent notes --json`.
 
-**ID aliases** use placeholders and accept exactly one bit ID: `{id}` is the complete ID, `{shelf}` its shelf, and `{name}` its name. `bs archive notes/checklist` expands to `move notes/checklist archive/notes.checklist --set moved_from=notes/checklist`. Substitution is single-pass and keeps each argument intact, including spaces and shell metacharacters. ID aliases accept `--json`, `--dry-run`, and `--config` before or after the ID; put any other arguments in the array. `--dry-run` must be supported by the target command.
+**ID aliases** use placeholders and accept exactly one bit ID: `{id}` is the complete ID, `{shelf}` its shelf, and `{name}` its name. `bs archive notes/checklist` expands to `move notes/checklist archive/notes.checklist --set moved_from=notes/checklist`. Substitution is single-pass and keeps each value intact, including spaces and shell metacharacters. Templates are bound using the built-in CLI grammar before substitution; expanded option values remain values and positional operands remain operands, even if they look like flags. For a hyphen-prefixed ID, use `bs archive --dry-run -- -notes/bit`; all options precede `--`. ID aliases accept `--json`, `--dry-run`, and `--config` before or after the ID; put any other arguments in the array. `--dry-run` must be supported by the target command.
 
 ```sh
 bs aliases --json        # name → argv map

@@ -9,6 +9,8 @@ Requires the `bs` executable (supported public CLI: 0.1.x; bundled version in VE
 
 List/search/shelf-list JSON is `{results, errors, complete}`. Read the `results` array and check both `complete` and exit status. Incomplete scans preserve healthy results but exit 1; do not treat omitted/inaccessible scope as empty. Search scores are implementation-defined ranking signals. External helper aliases own their output contract.
 
+Unknown built-in options exit 2. For a hyphen-prefixed positional operand, put options first and use `--`, e.g. `bs show --json -- -notes/bit` or `bs move --dry-run -- -notes/bit notes/bit`. For hyphen-prefixed option values use `=`, e.g. `--shelf=-notes`. Built-in aliases follow this convention; helper aliases forward literal arguments. Unscoped `bs validate --json` checks all shelves, including non-discoverable ones; validate has no `--all`.
+
 ## Save or edit
 
 1. Discover shelves with `bs shelf list --json`.
