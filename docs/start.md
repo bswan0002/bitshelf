@@ -57,7 +57,7 @@ bs edit notes/pagination-research                 # open in your editor
 bs edit notes/pagination-research --file revised.md  # or replace the body
 ```
 
-Edits preserve the title, tags, and other metadata, and advance `updated` only when something really changed. You can also edit the file directly in any editor—run `bs sync` afterward so timestamps stay accurate. See [Timestamps and sync](concepts/timestamps.md).
+Edits preserve the title, tags, and other metadata, and advance `updated` only when something really changed. You can also edit the file directly in any editor—manage timestamps yourself for direct edits. See [Timestamps](concepts/timestamps.md).
 
 ## 5. Give a shelf its own conventions
 

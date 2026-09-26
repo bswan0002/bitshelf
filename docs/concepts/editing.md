@@ -1,7 +1,5 @@
 # Saving and editing
 
-> Timestamp behavior below is the approved target contract from ticket 01;
-> the prototype still uses lifecycle state and sync until ticket 09 lands.
 
 ## Saving exact content
 
@@ -35,7 +33,7 @@ bs edit notes/release-checklist --title 'New title' --tags release,checklist --j
 - With no mutation flags, `bs edit ID` opens a temporary draft in your editor and waits. The original is replaced only after the editor exits successfully, the metadata validates, and a check confirms the original didn't change concurrently. A failed edit keeps the draft and reports its path.
 - JSON mode requires explicit mutation flags and never launches an editor.
 
-Editing files directly in any editor is also supported. Markdown is authoritative: manage dates yourself for external edits. There is no watcher or sync in the target contract.
+Editing files directly in any editor is also supported. Markdown is authoritative: manage dates yourself for external edits. There is no watcher or sync .
 
 ## Editors
 

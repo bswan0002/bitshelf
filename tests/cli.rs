@@ -573,7 +573,7 @@ fn dynamic_completion_uses_current_store_and_override() {
 }
 
 #[test]
-fn edit_and_sync_manage_reserved_timestamps_and_preserve_body() {
+fn edit_manages_command_local_timestamps_and_preserve_body() {
     let f = Fixture::new();
     f.ok(&["add", "notes/tracked", "--title", "Tracked"]);
     let path = f.root.join("notes/bits/tracked.md");
@@ -613,80 +613,17 @@ fn edit_and_sync_manage_reserved_timestamps_and_preserve_body() {
         false
     );
     assert_eq!(fs::read_to_string(&path).unwrap(), after);
-    let state = f.root.join(".bitshelf/state.json");
-    let state_before = fs::read(&state).unwrap();
+    assert!(!f.root.join(".bitshelf/state.json").exists());
     fs::write(&path, format!("{after}\nmanual edit")).unwrap();
     let direct = fs::read(&path).unwrap();
-    let preview = f.json(&["sync", "notes", "--dry-run", "--json"]);
-    assert_eq!(preview["results"][0]["changed"], true);
+    f.ok(&["list", "--json"]);
     assert_eq!(fs::read(&path).unwrap(), direct);
-    assert_eq!(fs::read(&state).unwrap(), state_before);
-    f.ok(&["list", "--sort", "updated", "--reverse", "--json"]);
-    f.ok(&["show", "notes/tracked", "--json"]);
-    assert_eq!(fs::read(&path).unwrap(), direct);
-    assert_eq!(fs::read(&state).unwrap(), state_before);
     assert_eq!(
-        f.json(&["sync", "notes", "--json"])["results"][0]["changed"],
-        true
-    );
-    let synced = fs::read_to_string(&path).unwrap();
-    assert_eq!(metadata(&synced)["created"], first["created"]);
-    assert!(synced.ends_with("manual edit"));
-    assert_eq!(
-        f.json(&["sync", "notes", "--json"])["results"][0]["changed"],
+        f.json(&["edit", "notes/tracked", "--title", "Tracked", "--json"])["changed"],
         false
     );
-    assert_eq!(fs::read_to_string(&path).unwrap(), synced);
-    // Reserved-only tampering is repaired, not counted as a content edit.
-    fs::write(
-        &path,
-        synced.replace(
-            metadata(&synced)["created"].as_str().unwrap(),
-            "2000-01-01T00:00:00Z",
-        ),
-    )
-    .unwrap();
-    let result = f.json(&["sync", "--json"]);
-    assert_eq!(result["results"][0]["changed"], false);
-    assert_eq!(result["results"][0]["metadata_changed"], true);
-    assert_eq!(
-        metadata(&fs::read_to_string(&path).unwrap())["created"],
-        first["created"]
-    );
-}
-
-#[test]
-fn sync_baselines_legacy_files_and_reports_invalid_bits() {
-    let f = Fixture::new();
-    f.write("notes/legacy", "---\ntitle: Legacy\ncreated: 2020-01-01T00:00:00Z\ncustom: keep\nexpires: 2099-01-01T00:00:00Z\n---\nbody");
-    f.write("notes/broken", "---\ntitle: [\n---\nbroken");
-    let path = f.root.join("notes/bits/legacy.md");
-    let original = fs::read(&path).unwrap();
-    let preview = f.run(&["sync", "--dry-run", "--json"]);
-    assert!(!preview.status.success());
-    assert_eq!(fs::read(&path).unwrap(), original);
-    assert!(!f.root.join(".bitshelf").exists());
-    let out = f.run(&["sync", "--json"]);
-    assert!(!out.status.success());
-    let results: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert!(results["results"][0]["error"].is_string());
-    assert_eq!(results["results"][1]["baselined"], true);
-    let raw = fs::read_to_string(&path).unwrap();
-    assert_eq!(
-        serde_saphyr::from_str::<Value>(raw.split("---").nth(1).unwrap()).unwrap()["created"],
-        "2020-01-01T00:00:00Z"
-    );
-    assert!(raw.contains("updated:"));
-    assert!(raw.contains("custom: keep"));
-    assert_eq!(
-        serde_saphyr::from_str::<Value>(raw.split("---").nth(1).unwrap()).unwrap()["expires"],
-        "2099-01-01T00:00:00Z"
-    );
-    assert!(raw.ends_with("body"));
-    assert_eq!(
-        fs::read_to_string(f.root.join("notes/bits/broken.md")).unwrap(),
-        "---\ntitle: [\n---\nbroken"
-    );
+    assert_eq!(fs::read(&path).unwrap(), direct);
+    assert!(!f.run(&["sync"]).status.success());
 }
 
 #[test]
@@ -766,28 +703,24 @@ fn editor_edit_waits_and_preserves_drafts_on_failure() {
 }
 
 #[test]
-fn invalid_edit_does_not_change_file_or_tracking_and_lock_is_respected() {
+fn invalid_edit_preserves_bytes_and_ignores_prototype_state() {
     let f = Fixture::new();
     f.ok(&["add", "notes/safe", "--title", "Safe"]);
-    let path = f.root.join("notes/bits/safe.md");
-    let state = f.root.join(".bitshelf/state.json");
+    let path = f.bit_path("notes/safe");
     let raw = fs::read(&path).unwrap();
-    let tracked = fs::read(&state).unwrap();
     assert!(
-        !f.run(&["edit", "notes/safe", "--title", "", "--json"])
+        !f.run(&["edit", "notes/safe", "--title", ""])
             .status
             .success()
     );
     assert_eq!(fs::read(&path).unwrap(), raw);
-    assert_eq!(fs::read(&state).unwrap(), tracked);
-    fs::write(f.root.join(".bitshelf/state.lock"), "another process").unwrap();
-    assert!(!f.run(&["sync", "--json"]).status.success());
-    assert!(
-        !f.run(&["edit", "notes/safe", "--title", "Changed", "--json"])
-            .status
-            .success()
+    fs::write(f.root.join(".bitshelf/state.json"), "corrupt").unwrap();
+    fs::write(f.root.join(".bitshelf/state.lock"), "obsolete").unwrap();
+    f.ok(&["edit", "notes/safe", "--title", "Changed"]);
+    assert_eq!(
+        fs::read_to_string(f.root.join(".bitshelf/state.json")).unwrap(),
+        "corrupt"
     );
-    assert_eq!(fs::read(&path).unwrap(), raw);
 }
 
 #[test]
@@ -908,52 +841,6 @@ fn lifecycle_refuses_symlinked_bits_and_internal_state() {
 }
 
 #[test]
-fn sync_tracks_incomplete_bits_without_enforcing_shelf_requirements() {
-    let f = Fixture::new();
-    f.ok(&["shelf", "add", "ui", "--required", "title,tags"]);
-    f.write("ui/abc", "unfinished note");
-    f.write("ui/bad-tags", "---\ntags: not-a-list\n---\nbody");
-    let preview = f.ok(&["sync", "ui", "--dry-run", "--json"]);
-    assert!(preview.stderr.is_empty());
-    assert_eq!(
-        fs::read_to_string(f.root.join("ui/bits/abc.md")).unwrap(),
-        "unfinished note"
-    );
-    let synced = f.ok(&["sync", "ui", "--json"]);
-    assert!(synced.stderr.is_empty());
-    let value: Value = serde_json::from_slice(&synced.stdout).unwrap();
-    assert!(
-        value["results"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|r| r["baselined"] == true && r["error"].is_null())
-    );
-    let path = f.root.join("ui/bits/abc.md");
-    let baseline = fs::read_to_string(&path).unwrap();
-    assert!(baseline.contains("created:"));
-    assert!(baseline.contains("updated:"));
-    assert!(!baseline.contains("title:"));
-    assert!(!baseline.contains("tags:"));
-    assert!(baseline.ends_with("unfinished note"));
-    fs::write(&path, format!("{baseline} edited")).unwrap();
-    let updated = f.json(&["sync", "ui", "--json"]);
-    assert_eq!(updated["results"][0]["changed"], true);
-    assert!(
-        fs::read_to_string(f.root.join("ui/bits/bad-tags.md"))
-            .unwrap()
-            .contains("tags: not-a-list")
-    );
-    // Authoring validation remains strict and separate from timestamp tracking.
-    assert!(!f.run(&["validate", "ui", "--json"]).status.success());
-    assert!(
-        !f.run(&["edit", "ui/abc", "--title", "Still missing tags", "--json"])
-            .status
-            .success()
-    );
-}
-
-#[test]
 fn shelf_local_configuration_and_storage_are_portable() {
     let f = Fixture::new();
     f.ok(&[
@@ -1045,7 +932,6 @@ fn auxiliary_files_are_ignored_and_preserved() {
             .len(),
         1
     );
-    f.ok(&["sync", "--json"]);
     f.ok(&["validate", "--json"]);
     // Remove the nonexpiring bit to allow pruning to succeed without a skip warning.
     fs::remove_file(f.root.join("docs/bits/SHELF.md")).unwrap();
@@ -1132,13 +1018,12 @@ fn refuses_symlinked_bits_directories_and_shelf_configs() {
 }
 
 #[test]
-fn editor_does_not_hold_store_lock_and_commit_reloads_state() {
+fn editor_does_not_hold_store_lock() {
     let f = Fixture::new();
     f.ok(&["add", "notes/editing", "--title", "Editing"]);
     let script = f._temp.path().join("editor.sh");
     fs::write(&script, format!(
-        "set -eu\n'{}' --config '{}' add notes/parallel --title Parallel\n'{}' --config '{}' sync\nprintf '\\neditor content' >> \"$1\"\n",
-        env!("CARGO_BIN_EXE_bs"), f.config.display(),
+        "set -eu\n'{}' --config '{}' add notes/parallel --title Parallel\nprintf '\\neditor content' >> \"$1\"\n",
         env!("CARGO_BIN_EXE_bs"), f.config.display(),
     )).unwrap();
     fs::write(
@@ -1156,110 +1041,8 @@ fn editor_does_not_hold_store_lock_and_commit_reloads_state() {
             .unwrap()
             .ends_with("editor content")
     );
-    let state: Value =
-        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
-    assert!(state["entries"]["notes/parallel"].is_object());
-    assert!(state["entries"]["notes/editing"].is_object());
-    assert_eq!(
-        f.json(&["sync", "--json"])["results"][1]["baselined"],
-        false
-    );
-}
-
-#[test]
-fn sync_forgets_missing_paths_without_changing_live_history() {
-    let f = Fixture::new();
-    f.ok(&["add", "notes/deleted", "--title", "Deleted"]);
-    f.ok(&["add", "notes/live", "--title", "Live"]);
-    f.ok(&["shelf", "add", "removed"]);
-    f.ok(&["add", "removed/old", "--title", "Old"]);
-    let state_path = f.root.join(".bitshelf/state.json");
-    let before = fs::read(&state_path).unwrap();
-    let tracked: Value = serde_json::from_slice(&before).unwrap();
-    fs::remove_file(f.bit_path("notes/deleted")).unwrap();
-    fs::remove_dir_all(f.root.join("removed")).unwrap();
-    f.ok(&["sync", "notes", "--dry-run"]);
-    assert_eq!(fs::read(&state_path).unwrap(), before);
-    // Scoped sync also retires records for definitively absent paths elsewhere.
-    f.ok(&["sync", "notes"]);
-    let state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
-    assert!(state["entries"]["notes/deleted"].is_null());
-    assert!(state["entries"]["removed/old"].is_null());
-    assert_eq!(
-        state["entries"]["notes/live"],
-        tracked["entries"]["notes/live"]
-    );
-    f.write(
-        "notes/deleted",
-        "---\ncreated: 2001-01-01T00:00:00Z\nupdated: 2002-01-01T00:00:00Z\n---\nreplacement",
-    );
-    let result = f.json(&["sync", "notes", "--json"]);
-    assert_eq!(result["results"][0]["baselined"], true);
-    assert!(
-        fs::read_to_string(f.bit_path("notes/deleted"))
-            .unwrap()
-            .contains("created: 2001-01-01T00:00:00Z")
-    );
-}
-
-#[test]
-fn rename_sync_and_rename_back_starts_fresh_tracking() {
-    let f = Fixture::new();
-    f.ok(&["add", "notes/original", "--title", "Original"]);
-    fs::rename(f.bit_path("notes/original"), f.bit_path("notes/moved")).unwrap();
-    assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
-    fs::rename(f.bit_path("notes/moved"), f.bit_path("notes/original")).unwrap();
-    assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
-    let state: Value =
-        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
-    assert_eq!(state["entries"].as_object().unwrap().len(), 1);
-    assert!(state["entries"]["notes/original"].is_object());
-}
-
-#[test]
-fn atomic_external_save_preserves_history_and_detects_changes() {
-    let f = Fixture::new();
-    f.ok(&["add", "notes/atomic", "--title", "Atomic"]);
-    let path = f.bit_path("notes/atomic");
-    let before = f.json(&["list", "--json"])[0]["metadata"].clone();
-    let replacement = f._temp.path().join("replacement.md");
-    fs::write(
-        &replacement,
-        format!("{}new body", fs::read_to_string(&path).unwrap()),
-    )
-    .unwrap();
-    fs::rename(replacement, &path).unwrap();
-    let synced = f.json(&["sync", "--json"]);
-    assert_eq!(synced["results"][0]["baselined"], false);
-    assert_eq!(synced["results"][0]["changed"], true);
-    let after = f.json(&["list", "--json"])[0]["metadata"].clone();
-    assert_eq!(after["created"], before["created"]);
-    assert_ne!(after["updated"], before["updated"]);
-}
-
-#[test]
-fn prune_forgets_removed_bits_and_respects_lock() {
-    let f = Fixture::new();
-    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
-    f.write(
-        "tmp/old",
-        "---\ncreated: 2000-01-01T00:00:00Z\nexpires: 2000-01-02T00:00:00Z\n---\nold",
-    );
-    f.ok(&["sync"]);
-    let state_path = f.root.join(".bitshelf/state.json");
-    let before = fs::read(&state_path).unwrap();
-    let lock = f.root.join(".bitshelf/state.lock");
-    fs::write(&lock, "another command").unwrap();
-    f.ok(&["prune", "--dry-run"]);
-    assert!(!f.run(&["prune"]).status.success());
-    assert!(f.bit_path("tmp/old").exists());
-    assert_eq!(fs::read(&state_path).unwrap(), before);
-    fs::remove_file(lock).unwrap();
-    f.ok(&["prune"]);
-    let state: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
-    assert!(state["entries"]["tmp/old"].is_null());
-    f.write("tmp/old", "replacement");
-    assert_eq!(f.json(&["sync", "--json"])["results"][0]["baselined"], true);
+    assert!(f.bit_path("notes/parallel").is_file());
+    assert!(!f.root.join(".bitshelf/state.json").exists());
 }
 
 #[cfg(unix)]
@@ -1342,7 +1125,6 @@ fn explicit_symlink_store_root_is_supported() {
     )
     .unwrap();
     f.ok(&["add", "notes/safe", "--title", "Safe"]);
-    f.ok(&["sync"]);
     f.ok(&["edit", "notes/safe", "--title", "Updated"]);
     f.ok(&["validate"]);
 }
@@ -1351,7 +1133,7 @@ fn explicit_symlink_store_root_is_supported() {
 fn lifecycle_commands_do_not_recreate_a_missing_store() {
     let f = Fixture::new();
     fs::remove_dir_all(&f.root).unwrap();
-    for args in [vec!["prune"], vec!["sync"], vec!["sync", "--dry-run"]] {
+    for args in [vec!["prune"], vec!["prune", "--dry-run"]] {
         assert!(!f.run(&args).status.success());
         assert!(!f.root.exists());
     }
@@ -1365,7 +1147,6 @@ fn prune_during_editor_session_cannot_resurrect_a_bit() {
         "tmp/expired",
         "---\nexpires: 2000-01-01T00:00:00Z\n---\nold",
     );
-    f.ok(&["sync"]);
     let script = f._temp.path().join("editor.sh");
     fs::write(
         &script,
@@ -1389,9 +1170,6 @@ fn prune_during_editor_session_cannot_resurrect_a_bit() {
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("draft preserved at"));
     assert!(!f.bit_path("tmp/expired").exists());
-    let state: Value =
-        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
-    assert!(state["entries"]["tmp/expired"].is_null());
     let drafts: Vec<_> = fs::read_dir(f.root.join("tmp/bits"))
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -1748,28 +1526,18 @@ fn output_errors_other_than_broken_pipe_still_fail() {
 }
 
 #[test]
-fn move_preserves_body_dates_and_transfers_tracking() {
+fn move_preserves_body_dates_without_history() {
     let f = Fixture::new();
     f.ok(&["shelf", "add", "archive"]);
     f.write("notes/a", "---\ncreated: 2020-01-01T00:00:00Z\nupdated: 2020-01-02T00:00:00Z\ncustom: keep\n---\nExact\r\nbody");
-    f.ok(&["sync"]);
     let before = fs::read_to_string(f.bit_path("notes/a")).unwrap();
-    let state = fs::read(f.root.join(".bitshelf/state.json")).unwrap();
     let preview = f.json(&["move", "notes/a", "archive", "--dry-run", "--json"]);
     assert_eq!(preview["id"], "archive/a");
     assert_eq!(preview["dry_run"], true);
-    assert_eq!(
-        fs::read(f.root.join(".bitshelf/state.json")).unwrap(),
-        state
-    );
     assert!(!f.bit_path("archive/a").exists());
     f.ok(&["move", "notes/a", "archive"]);
     assert!(!f.bit_path("notes/a").exists());
     assert_eq!(fs::read_to_string(f.bit_path("archive/a")).unwrap(), before);
-    let state: Value =
-        serde_json::from_slice(&fs::read(f.root.join(".bitshelf/state.json")).unwrap()).unwrap();
-    assert!(state["entries"].get("notes/a").is_none());
-    assert!(state["entries"].get("archive/a").is_some());
     f.ok(&[
         "move",
         "archive/a",
@@ -1788,8 +1556,6 @@ fn move_preserves_body_dates_and_transfers_tracking() {
         f.ok(&["show", "notes/renamed", "--body"]).stdout,
         b"Exact\r\nbody"
     );
-    let sync = f.json(&["sync", "--json"]);
-    assert_eq!(sync["results"][0]["changed"], false);
 }
 
 #[test]
@@ -1856,13 +1622,6 @@ fn excluded_shelves_are_explicitly_accessible_and_still_maintained() {
     );
     f.ok(&["show", "archive/inactive"]);
     f.ok(&["edit", "archive/inactive", "--title", "Still editable"]);
-    assert_eq!(
-        f.json(&["sync", "--json"])["results"]
-            .as_array()
-            .unwrap()
-            .len(),
-        2
-    );
     assert_eq!(f.json(&["validate", "--json"]).as_array().unwrap().len(), 2);
     f.ok(&[
         "shelf",
@@ -2029,12 +1788,7 @@ fn move_respects_lock_corrupt_state_and_destination_tag_rules() {
     .unwrap();
     assert!(!f.run(&["move", "notes/a", "strict"]).status.success());
     let before = fs::read(f.bit_path("notes/a")).unwrap();
-    fs::write(f.root.join(".bitshelf/state.lock"), "busy").unwrap();
-    assert!(!f.run(&["move", "notes/a", "notes/b"]).status.success());
-    f.ok(&["move", "notes/a", "notes/b", "--dry-run"]);
-    fs::remove_file(f.root.join(".bitshelf/state.lock")).unwrap();
     fs::write(f.root.join(".bitshelf/state.json"), "corrupt").unwrap();
-    assert!(!f.run(&["move", "notes/a", "notes/b"]).status.success());
-    assert_eq!(fs::read(f.bit_path("notes/a")).unwrap(), before);
-    assert!(!f.bit_path("notes/b").exists());
+    f.ok(&["move", "notes/a", "notes/b"]);
+    assert_eq!(fs::read(f.bit_path("notes/b")).unwrap(), before);
 }

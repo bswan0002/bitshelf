@@ -205,8 +205,7 @@ fn failed_add_drafts_have_recovery_paths_for_each_failure_stage() {
             "yaml" => "printf '%s' '---\ntitle: [\n---\nunfinished' > \"$1\"\n".into(),
             "validation" => "printf '%s' '---\ntitle: []\n---\nunfinished' > \"$1\"\n".into(),
             "lock" => format!(
-                "mkdir '{}'\nprintf busy > '{}/state.lock'\n",
-                store.join(".bitshelf").display(),
+                "mkdir -p '{}/writer.lock'\n",
                 store.join(".bitshelf").display()
             ),
             _ => unreachable!(),

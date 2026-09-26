@@ -19,11 +19,15 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         !destination.try_exists()?,
         "destination {id} already exists; nothing moved"
     );
-    let mut state = lifecycle::State::load(store, !args.dry_run)?;
+    let _lock = if args.dry_run {
+        None
+    } else {
+        Some(crate::locking::Lock::acquire(store)?)
+    };
     let before =
         fs::read_to_string(&source).with_context(|| format!("cannot read bit {}", args.id))?;
     let now = Utc::now();
-    let (raw, entry, _) = lifecycle::reconcile(&before, state.get(&args.id), now)?;
+    let raw = before.clone();
     let after = if args.set.is_empty() {
         raw
     } else {
@@ -35,7 +39,7 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         .apply(&mut metadata)?;
         lifecycle::render(&metadata, body)?
     };
-    let (after, entry, _) = lifecycle::reconcile(&after, Some(&entry), now)?;
+    let (after, _) = lifecycle::finalize(&before, &after, now, false)?;
     lifecycle::validate(store, &id, &after)?;
     let result = json!({"from":args.id,"id":id,"path":destination,"dry_run":args.dry_run});
     if args.dry_run {
@@ -88,8 +92,5 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         return Err(error)
             .context("move did not complete; source preserved, destination rolled back");
     }
-    state.forget(&args.id);
-    state.set(&id, entry);
-    state.save(store).with_context(|| format!("bit moved to {id}, but tracking state could not be saved; fix the error and run bs sync (do not repeat the move)"))?;
     Ok(result)
 }

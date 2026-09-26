@@ -23,7 +23,6 @@ pub enum Commands {
     Move(Move),
     /// List configured argv aliases
     Aliases(Empty),
-    Sync(Sync),
     List(List),
     Search(Search),
     Show(Show),
@@ -102,14 +101,6 @@ pub struct Edit {
     /// Replace tags with a comma-separated list
     #[usage(long)]
     pub tags: Option<String>,
-}
-/// Reconcile timestamps after direct filesystem edits; first run establishes a baseline
-#[derive(Args)]
-pub struct Sync {
-    #[usage(complete = complete_sync)]
-    pub shelf: Option<String>,
-    #[usage(long)]
-    pub dry_run: bool,
 }
 /// List bits, optionally sorted by creation or edit time
 #[derive(Args)]
@@ -295,7 +286,6 @@ completer!(complete_filter, Filter, false, true);
 completer!(complete_prune, Prune, false, true);
 
 completer!(complete_edit, Edit, true, false);
-completer!(complete_sync, Sync, false, true);
 
 /// Move a bit to a shelf or a new shelf/name ID without overwriting
 #[derive(Args)]

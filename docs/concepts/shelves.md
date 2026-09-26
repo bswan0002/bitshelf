@@ -16,7 +16,7 @@ A **store** is a directory of **shelves**. Each shelf is a directory containing 
 
 Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones you create in a file manager. There is no global registry: deleting a shelf's directory removes it from discovery. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory, and `bs shelf add NAME` repairs it.
 
-Everything in a shelf other than bits, `bs.toml`, and `SHELF.md` is ignored by `bs` and preserved by content operations. The hidden store-level `.bitshelf/` directory holds [timestamp tracking state](timestamps.md), not a search index.
+Everything in a shelf other than bits, `bs.toml`, and `SHELF.md` is ignored by `bs` and preserved by content operations. The hidden store-level `.bitshelf/` directory holds independent writer locking; it contains no required content history.
 
 ## Bits and identifiers
 

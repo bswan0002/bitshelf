@@ -47,7 +47,7 @@ export default defineConfig({
         { text: 'Shelves, bits, and configuration', link: '/concepts/shelves' },
         { text: 'Saving and editing', link: '/concepts/editing' },
         { text: 'Finding and reading', link: '/concepts/finding' },
-        { text: 'Timestamps and sync', link: '/concepts/timestamps' },
+        { text: 'Timestamps', link: '/concepts/timestamps' },
         { text: 'Moving and aliases', link: '/concepts/moving' },
         { text: 'Expiration and pruning', link: '/concepts/pruning' },
         { text: 'Shell completion', link: '/concepts/completion' },
@@ -56,7 +56,7 @@ export default defineConfig({
       ]},
       { text: 'Command reference', collapsed: true, items: [
         { text: 'bs', link: '/reference/' },
-        ...['init', 'shelf', 'add', 'edit', 'move', 'aliases', 'sync', 'list', 'search', 'show', 'open', 'context', 'validate', 'prune', 'completion'].map(name => ({ text: name, link: `/reference/${name}` })),
+        ...['init', 'shelf', 'add', 'edit', 'move', 'aliases', 'list', 'search', 'show', 'open', 'context', 'validate', 'prune', 'completion'].map(name => ({ text: name, link: `/reference/${name}` })),
       ]},
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/bswan0002/bitshelf' }],

@@ -11,7 +11,7 @@ bs list --sort created --reverse     # newest first
 bs list --all                        # include non-discoverable shelves
 ```
 
-List defaults to identifier order. Timestamp sorting is ascending unless `--reverse` is given, breaks ties by identifier, and places missing or invalid dates last in either direction. Sorting doesn't sync; run [`bs sync`](timestamps.md) first if files were edited directly.
+List defaults to identifier order. Timestamp sorting is ascending unless `--reverse` is given, breaks ties by identifier, and places missing or invalid dates last in either direction. Sorting reads dates directly from Markdown; external edits leave date management to you.
 
 ## Search
 

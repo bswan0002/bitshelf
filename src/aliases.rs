@@ -23,7 +23,6 @@ const BUILTINS: &[&str] = &[
     "edit",
     "move",
     "aliases",
-    "sync",
     "list",
     "search",
     "show",

@@ -15,7 +15,7 @@ The destination is a shelf (keeping the bit name) or a complete `shelf/name` ID.
 - `--set KEY=VALUE` (repeatable) sets a frontmatter **string**, preserving other metadata and the exact body. Values may contain `=`. It isn't YAML evaluation: `--set tags=…` can't build a list. `created` and `updated` stay reserved. For duplicate keys, the last assignment wins.
 - `--dry-run` validates and returns the planned destination without writing files or state.
 
-**Timestamps.** Moving alone doesn't advance `updated` for a reconciled bit; metadata changes or pending external edits do. `created` and tracking history follow the bit to its new ID. Untracked files are baselined first, missing timestamps may be filled, and frontmatter formatting may be normalized when metadata is rewritten.
+**Timestamps.** A plain move preserves dates including absence. Metadata changes update `updated` relative to the current source; `created` is never invented. External edits already in the source are authoritative.
 
 **Expiration.** `expires` is preserved: never added, extended, or removed by a move. A bit moved into a retention shelf may therefore already be eligible for pruning, and one without `expires` is reported as skipped by prune. Permanent shelves are never pruned, even when bits have expiration metadata.
 

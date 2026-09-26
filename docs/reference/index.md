@@ -23,7 +23,6 @@
 - [`bs edit [FLAGS] <ID>`](/reference/edit.md)
 - [`bs move [--set <SET>] [--dry-run] <ID> <DESTINATION>`](/reference/move.md)
 - [`bs aliases`](/reference/aliases.md)
-- [`bs sync [--dry-run] [SHELF]`](/reference/sync.md)
 - [`bs list [FLAGS] [SHELF]`](/reference/list.md)
 - [`bs search [FLAGS] <QUERY>`](/reference/search.md)
 - [`bs show [--body] <ID>`](/reference/show.md)

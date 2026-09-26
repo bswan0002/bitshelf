@@ -63,6 +63,6 @@ npm run docs:dev
 npm run docs:build
 ```
 
-The Rust CLI is synchronous, one application package, with no search index; hidden store-local state supports timestamp change detection. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha. GitHub Actions is configured to test Linux/macOS, build release archives on version tags, and deploy development docs separately. Nothing is published or scheduled by local setup.
+The Rust CLI is synchronous, one application package, with no search index; Markdown is authoritative and timestamp comparison is command-local. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha. GitHub Actions is configured to test Linux/macOS, build release archives on version tags, and deploy development docs separately. Nothing is published or scheduled by local setup.
 
 Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64. See [Safety and recovery](docs/concepts/safety.md) for prototype boundaries.

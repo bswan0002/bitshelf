@@ -1,8 +1,5 @@
 # Timestamps
 
-> Approved target contract (ticket 01). The prototype still uses lifecycle state
-> and `bs sync`; implementation follows in ticket 09. The rules below describe
-> the replacement, not the current executable.
 
 ## Authority and scope
 
@@ -110,7 +107,7 @@ removal. Do not migrate it or restore dates from it. Identifier reuse has no his
 Writer locking remains independent of timestamp authority. The lock implementation
 must not depend on the prototype `state.lock` sentinel; obsolete state/lock files
 must not block commands. Do not recursively delete `.bitshelf`, which may contain
-independent locking or other files. Ticket 10 defines the replacement locking.
+independent locking or other files. See the safety documentation for writer locking.
 
 See [Saving and editing](editing.md) and the
 [timestamp fixture specification](timestamp-fixtures.md).

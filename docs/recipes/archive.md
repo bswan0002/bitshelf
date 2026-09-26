@@ -60,7 +60,7 @@ bs search checklist --shelf archive
 bs show archive/notes.checklist  # direct access always works
 ```
 
-`discoverable = false` also hides the shelf from `bs open --pick`. It's not an access restriction: shelf listing, completion, context, show/open by ID, editing, sync, validation, and pruning all still include it.
+`discoverable = false` also hides the shelf from `bs open --pick`. It's not an access restriction: shelf listing, completion, context, show/open by ID, editing, validation, and pruning all still include it.
 
 ## Restore
 

@@ -158,10 +158,6 @@ impl Store {
     pub fn bits(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
         self.read_bits(shelf, true, false)
     }
-    /// Sync owns its error reporting and does not enforce authoring requirements.
-    pub fn bits_for_sync(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
-        self.read_bits(shelf, false, false)
-    }
     fn read_bits(
         &self,
         shelf: Option<&str>,

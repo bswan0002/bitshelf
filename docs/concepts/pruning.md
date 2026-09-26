@@ -11,7 +11,7 @@ bs shelf add tmp --retention 14d
 - Retention accepts positive whole days only (`14d`).
 - New bits in the shelf get an explicit `expires` timestamp at creation plus the retention period.
 - Changing retention affects only future bits. Removing it (by editing `bs.toml`) disables pruning for that shelf.
-- Edits, sync, and moves preserve `expires` and never extend it.
+- Edits and moves preserve `expires` and never extend it.
 
 ## Pruning
 

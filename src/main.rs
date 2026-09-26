@@ -9,6 +9,7 @@ mod identity;
 mod input;
 mod interactive;
 mod lifecycle;
+mod locking;
 mod metadata;
 mod moving;
 mod output;
@@ -235,6 +236,7 @@ fn run(args: Bs) -> Result<()> {
                 &cfg,
                 created_at,
             )?;
+            let default_expiry = bit::parse(&raw)?.0.get("expires").cloned();
             let mut draft = None;
             if c.interactive {
                 use std::io::Write;
@@ -262,17 +264,31 @@ fn run(args: Bs) -> Result<()> {
                 draft = Some(p);
             }
             let saved = (|| -> Result<PathBuf> {
-                raw = lifecycle::new_bit(&raw, created_at)?;
+                let finalized_at = Utc::now();
+                let (mut metadata, body) = bit::parse(&raw)?;
+                if metadata.get("expires") == default_expiry.as_ref() {
+                    if let Some(retention) = &cfg.retention {
+                        let expires = finalized_at
+                            .checked_add_signed(config::retention(retention)?)
+                            .context("expiration out of range")?;
+                        metadata.insert(
+                            "expires".into(),
+                            expires
+                                .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true)
+                                .into(),
+                        );
+                        raw = lifecycle::render(&metadata, body)?;
+                    }
+                }
+                raw = lifecycle::new_bit(&raw, finalized_at)?;
                 let checked = bit::inspect(id.clone(), destination, &raw, &cfg);
                 ensure!(
                     checked.errors.is_empty(),
                     "invalid metadata: {}",
                     checked.errors.join(", "),
                 );
-                let mut state = lifecycle::State::load(&store, true)?;
-                state.remember(&id, &raw)?;
+                let _lock = locking::Lock::acquire(&store)?;
                 let dest = store.write_bit(&id, &raw)?;
-                state.save_after_bit(&store, &id)?;
                 Ok(dest)
             })();
             let dest = saved.with_context(|| match &draft {
@@ -305,39 +321,6 @@ fn run(args: Bs) -> Result<()> {
         Commands::Edit(c) => {
             let result = lifecycle::edit(&store, c, json_output)?;
             emit(&result, json_output, result["id"].as_str().unwrap_or(""))
-        }
-        Commands::Sync(c) => {
-            let results = lifecycle::sync(&store, c.shelf.as_deref(), c.dry_run)?;
-            let failed = results.iter().any(|r| r.error.is_some());
-            let human = results
-                .iter()
-                .map(|r| {
-                    format!(
-                        "{}\t{}",
-                        r.id,
-                        r.error.as_deref().unwrap_or(if r.baselined {
-                            "baselined"
-                        } else if r.metadata_changed {
-                            "timestamps reconciled"
-                        } else {
-                            "unchanged"
-                        })
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
-            let human = if c.dry_run {
-                format!("Dry run (no files changed)\n{human}")
-            } else {
-                human
-            };
-            emit(
-                &json!({"dry_run":c.dry_run,"results":results}),
-                json_output,
-                human,
-            )?;
-            ensure!(!failed, "some bits could not be synced; see per-bit errors");
-            Ok(())
         }
         Commands::List(c) => {
             output::check_listing(json_output, c.long, c.paths, c.null)?;

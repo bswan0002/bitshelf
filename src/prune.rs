@@ -66,14 +66,13 @@ pub fn run(
     store: &crate::store::Store,
     c: crate::cli::Prune,
 ) -> anyhow::Result<(Vec<serde_json::Value>, bool)> {
-    use crate::lifecycle;
     use anyhow::Context;
     use serde_json::json;
     use std::fs;
-    let mut state = if c.dry_run {
+    let _lock = if c.dry_run {
         None
     } else {
-        Some(lifecycle::State::load(&store, true)?)
+        Some(crate::locking::Lock::acquire(store)?)
     };
     let now = Utc::now();
     let bits = store.bits(c.shelf.as_deref())?;
@@ -95,14 +94,8 @@ pub fn run(
         if !c.dry_run {
             fs::remove_file(&b.path)
                 .with_context(|| format!("cannot remove {}", b.path.display()))?;
-            state.as_mut().unwrap().forget(&b.id);
         }
         results.push(json!({"id":b.id,"path":b.path,"status":if c.dry_run {"would_remove"} else {"removed"}}));
-    }
-    if let Some(state) = state {
-        state.save(&store).context(
-                    "pruning may have removed files, but tracking state could not be saved; fix the error and run bs sync",
-                )?;
     }
     Ok((results, failed))
 }
