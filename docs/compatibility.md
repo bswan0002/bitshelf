@@ -6,7 +6,7 @@ A minor release may break commands/configuration/JSON, with explicit changelog a
 
 Partial collection output is a complete JSON document. List/search/shelf list use `{results, errors, complete}`; each scope error has `{path, error}`. `complete: false` means something was inaccessible or omitted and exits 1 after emitting healthy results. Invalid addressable bits remain in results with per-bit errors and also make the collection incomplete. Explicit bad shelf selection fails clearly. Validation and prune retain per-item arrays; any failure/skipped unsafe item exits 1. Prune reports successful removals even when later removals fail. Fatal setup errors emit stderr only. Codes for prose diagnostics are deferred: structural outcome fields plus exit status suffice for this release.
 
-External helper aliases own their output and may not emit JSON. bs forwards literal argv, global config/executable context and exit status. Built-in aliases have their target's contract. Never parse human-readable diagnostics or depend on search weight constants.
+Shell recipes, helper aliases, and discovered executables own their output and may not emit JSON. bs forwards literal argv, global config/executable context and exit status. Built-in aliases have their target's contract. Never parse human-readable diagnostics or depend on search weight constants.
 
 ## Upgrade and downgrade procedure
 

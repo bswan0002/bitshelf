@@ -56,7 +56,7 @@ recent = ["list", "--sort", "updated", "--reverse"]
 - Use `--config PATH`, before or after a subcommand, to select a different configuration and store.
 - `bs init` writes the store as an absolute path. When you edit the file yourself, a leading `~/` expands to `HOME`, and other relative paths resolve against the configuration file's directory. Relative `init --store` values resolve the same way before they're written.
 - Invalid or unknown settings fail clearly. To remove an editor setting, edit the TOML directly.
-- See [editors](editing.md#editors) and [aliases](moving.md#aliases) for those settings.
+- See [editors](editing.md#editors) and [aliases and extensions](extensions.md) for those settings.
 
 ## Shelf settings: `bs.toml`
 
@@ -121,3 +121,5 @@ bs validate notes --json
 ```
 
 Validation checks metadata types, shelf requirements, tag rules, shelf configuration, and managed-path symlinks, and reports every problem it finds. Malformed bits stay available through `show` and `open`, and listings include diagnostics rather than hiding other files.
+
+For nested commands, configuration resolution is explicit `--config` → `BS_CONFIG` → the XDG default. Extensions receive `BS_CONFIG` automatically.

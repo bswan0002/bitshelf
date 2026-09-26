@@ -25,49 +25,30 @@ For how moves are written and recovered after interruption, see [Safety and reco
 
 ## Aliases
 
-Aliases live only in the global configuration, not in shelves. Built-in aliases are argument arrays starting with a built-in command:
+Archive is a configured workflow, not a built-in command:
 
 ```toml
-[aliases]
-recent = ["list", "--sort", "updated", "--reverse"]
-archive = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
+[aliases.archive]
+argv = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
+description = "Move a bit into archive, preserving its original ID in metadata"
+usage = "archive ID [--dry-run] [--json]"
+examples = ["bs archive notes/checklist --dry-run --json"]
 ```
 
-**Plain aliases** append your arguments unchanged: `bs recent notes --json`.
+Discover with `bs aliases --json`; inspect with `bs aliases show archive --json`.
+`bs aliases dry-run archive -- notes/checklist` previews the invocation without
+executing the move. `bs archive notes/checklist --dry-run --json` invokes the
+move's own validation and preview.
 
-**ID aliases** use placeholders and accept exactly one bit ID: `{id}` is the complete ID, `{shelf}` its shelf, and `{name}` its name. `bs archive notes/checklist` expands to `move notes/checklist archive/notes.checklist --set moved_from=notes/checklist`. Substitution is single-pass and keeps each value intact, including spaces and shell metacharacters. Templates are bound using the built-in CLI grammar before substitution; expanded option values remain values and positional operands remain operands, even if they look like flags. For a hyphen-prefixed ID, use `bs archive --dry-run -- -notes/bit`; all options precede `--`. ID aliases accept `--json`, `--dry-run`, and `--config` before or after the ID; put any other arguments in the array. `--dry-run` must be supported by the target command.
-
-```sh
-bs aliases --json        # name → argv map
-bs archive --help        # shows the expansion
-```
-
-- Global `--config` and `--json` also work before the alias name.
-- Aliases return their target command's JSON result and exit status.
-- Aliases can't shadow built-ins or chain to other aliases. Names use lowercase ASCII letters, digits, and hyphens, and can't start with a hyphen. Unknown or unclosed placeholders are configuration errors.
-- Built-in aliases expand arguments only; there is no implicit shell or environment expansion.
-- Alias names and their arguments aren't dynamically completed yet; built-in completion still works.
+See [Aliases and extensions](extensions.md) for argv shortcuts, shell recipes,
+structured descriptions, and automatic `bs-*` executable discovery. See
+[Archive without deleting](../recipes/archive.md) for the workflow in context.
 
 ### Explicit helper aliases
 
-Opt into an external helper with an `exec` argument array in your **global** configuration:
-
-```toml
-[aliases]
-ticket-list = { exec = ["python3", "/absolute/path/to/shelf/scripts/ticket-list.py"] }
-```
-
-This runs only when you explicitly invoke `bs ticket-list`. Treat configured executables and scripts as trusted code. Shelf configuration and guidance cannot register executable aliases automatically.
-
-- The executable and fixed arguments are literal argv; there is no implicit shell, placeholder substitution, tilde expansion, or environment expansion. Executable names resolve through `PATH`; relative paths use the caller's working directory. Prefer absolute script paths.
-- Arguments after the alias, including `--help` and `--json`, go to the helper unchanged, except `--config PATH` / `--config=PATH`, which select the bitshelf configuration and are consumed. A preceding global `--json` is forwarded too. Arguments after `--` remain literal.
-- `BS_CONFIG` contains the absolute selected configuration path. `BS_EXECUTABLE` contains the current bs executable path. Helpers calling bs should use both, so configuration overrides and the running version remain consistent.
-- Helpers inherit the working directory and standard streams. They own help, output, JSON support, and side effects; bs does not turn arbitrary helper output into JSON. Exit codes are preserved (signal termination maps to 1).
-- `bs aliases --json` exposes helper aliases as `{ "exec": [...] }`; built-in aliases remain arrays. Inspecting aliases does not execute them.
-
-This is explicit command execution, not a hook or plugin lifecycle. A helper may call built-in bs commands; avoid configuring recursive helper invocations.
-
-See [Archive without deleting](../recipes/archive.md) for the archive alias in context.
+Trusted external programs can be registered with `exec = ["program", "fixed-arg"]`.
+See the [helper configuration and execution contract](extensions.md#explicit-helpers).
+Shelf files do not register or execute helpers automatically.
 
 ## References and auxiliary files
 

@@ -9,7 +9,9 @@
 | `shelf add` | `{name, path}` |
 | `add` | `{id, path}` |
 | `move` | `{from, id, path, dry_run}` (destination ID/path; also used by move aliases) |
-| `aliases` | Object mapping names to built-in argument arrays or helper objects `{exec: [...]}` |
+| `aliases` | Object mapping available names to extension entries (see below) |
+| `aliases show NAME` | One extension entry |
+| `aliases dry-run NAME -- ARGS...` | `{executable, argv, command, environment, unset_environment}`; render-only, never executes |
 | `edit` | `{id, path, changed}` |
 | `list` | `{results: [{id, path, title, tags, metadata, errors}], errors, complete}` |
 | `search` | `{results: [{id, path, title, tags, metadata, errors, matches: {fields, score}}], errors, complete}` |
@@ -38,6 +40,12 @@ Exit codes: **0** success (including no search matches and quietly closed output
 
 `edit.changed` compares the current source and candidate body/user metadata, excluding created/updated and YAML formatting. Read-only commands do not change dates. Missing imported dates stay missing on no-ops and plain moves. See [timestamps](concepts/timestamps.md). `list --sort created|updated --reverse` sorts parsed dates, missing/invalid last, with deterministic ID tie-breaking.
 
-`discoverable` defaults to true. Default list/search omit shelves where it is false; `--all` or an explicit shelf includes them. Maintenance commands still include these shelves. `validate` without a shelf checks all shelves, including non-discoverable ones; it has no `--all` option. Validation/prune keep per-item arrays because each row reports an item or scope outcome; check exit status as well as rows. Move dry runs return the planned destination without writing. Built-in aliases return their target command’s JSON result and exit status. Explicit helper aliases forward `--json` and preserve exit status, but the helper owns its output contract; bs does not enforce JSON output for arbitrary executables.
+`discoverable` defaults to true. Default list/search omit shelves where it is false; `--all` or an explicit shelf includes them. Maintenance commands still include these shelves. `validate` without a shelf checks all shelves, including non-discoverable ones; it has no `--all` option. Validation/prune keep per-item arrays because each row reports an item or scope outcome; check exit status as well as rows. Move dry runs return the planned destination without writing. Built-in aliases return their target command’s JSON result and exit status. Helpers and discovered executables forward `--json` and preserve exit status. Recipes receive it as an argument. These extensions own their output contract; bs does not enforce JSON output for arbitrary commands.
 
 See [compatibility](compatibility.md) for incomplete discovery and release boundaries.
+
+## Extension discovery
+
+Each `aliases` entry has `{name, kind, origin, description, usage, examples, argv, exec, run, parameters, required_parameters, defaults, metadata_error}`. `kind` is `argv`, `recipe`, `helper`, or `executable`. `origin` is the absolute configuration path or discovered executable path. Only the applicable implementation field is non-null. Descriptions/usage can be null; argv shortcuts have inferred usage when none is supplied. `examples` is an array. Recipe `parameters` lists all user parameter names; `required_parameters` excludes those with defaults; `defaults` maps names to strings. Other kinds have empty parameter/default collections; the CLI does not infer an external program's argument schema. `metadata_error` is a diagnostic string for an invalid/unreadable executable sidecar, otherwise null. Catalog keys are the effective commands after precedence; shadowed PATH programs are omitted.
+
+Render-only previews return the executable, literal argv, and environment overrides (`BS_CONFIG`, `BS_EXECUTABLE`). `unset_environment` lists removed environment variables (`BASH_ENV` for recipes). `command` is the full rendered shell command for recipes, otherwise null. Previews require UTF-8 paths/arguments rather than displaying lossy substitutions. A preview does not predict a program's behavior and does not execute a target's own dry-run. See [Aliases and extensions](concepts/extensions.md) for shell rules, metadata, and argument routing.

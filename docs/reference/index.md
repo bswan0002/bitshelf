@@ -22,7 +22,7 @@
 - [`bs add [FLAGS] [ID]`](./add.md)
 - [`bs edit [FLAGS] <ID>`](./edit.md)
 - [`bs move [FLAGS] <ID> <DESTINATION>`](./move.md)
-- [`bs aliases`](./aliases.md)
+- [`bs aliases [ARGS]…`](./aliases.md)
 - [`bs list [FLAGS] [SHELF]`](./list.md)
 - [`bs search [FLAGS] <QUERY>`](./search.md)
 - [`bs show [--body] <ID>`](./show.md)

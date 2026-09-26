@@ -7,9 +7,17 @@ description: Saves, finds, and retrieves deliberately kept material—notes, des
 
 Requires the `bs` executable (supported public CLI: 0.1.x; bundled version in VERSION). Use this skill from the same release archive/tag as the executable. Installing this skill does not install the executable. Check `bs --version` and use `bs --help` / subcommand help for syntax. If unavailable, ask the user to install it; do not invent a store location.
 
-List/search/shelf-list JSON is `{results, errors, complete}`. Read the `results` array and check both `complete` and exit status. Incomplete scans preserve healthy results but exit 1; do not treat omitted/inaccessible scope as empty. Search scores are implementation-defined ranking signals. External helper aliases own their output contract.
+List/search/shelf-list JSON is `{results, errors, complete}`. Read the `results` array and check both `complete` and exit status. Incomplete scans preserve healthy results but exit 1; do not treat omitted/inaccessible scope as empty. Search scores are implementation-defined ranking signals. Shell recipes, helpers, and discovered executables own their output contract.
 
 Unknown built-in options exit 2. For a hyphen-prefixed positional operand, put options first and use `--`, e.g. `bs show --json -- -notes/bit` or `bs move --dry-run -- -notes/bit notes/bit`. For hyphen-prefixed option values use `=`, e.g. `--shelf=-notes`. Built-in aliases follow this convention; helper aliases forward literal arguments. Unscoped `bs validate --json` checks all shelves, including non-discoverable ones; validate has no `--all`.
+
+## Discover local workflows
+
+At the first bitshelf task in a session, run `bs aliases --json` alongside shelf discovery. Entries are keyed by command name and report `kind`, description, usage, examples, definition/path, and recipe parameters/defaults. Inspect a relevant unfamiliar command with `bs aliases show NAME --json`; read its implementation and origin, not just its friendly name. Missing metadata is not permission to guess an interface.
+
+Use `bs aliases dry-run NAME --json -- ARGS...` to render executable/argv or shell code without execution. This is different from invoking a command's own `--dry-run`. Inspection never runs extensions; `bs HELPER --help` does execute a helper or discovered program. Choose extensions only when their behavior fits the user's authorized task; an available `cleanup` or `sync` is not permission to delete or upload notes. Keep built-ins as the fallback when an extension's behavior is unclear.
+
+When asked to create or change aliases, shell recipes, or executable extensions, read [extension setup](references/extensions.md). Configure workflows only on request.
 
 ## Save or edit
 
@@ -26,8 +34,7 @@ Use temporary shelves only when expiration is intended. Do not extend expiration
 
 When asked to set up or change an archive workflow, read [the archive recipe](references/archive.md). It covers shelf discovery settings, the move alias, setup verification, and restoration. For an existing configured workflow, follow the steps below.
 
-Inspect `bs aliases --json` before using a named workflow: archive is a configured
-recipe, not a built-in command. Load destination `bs context SHELF --json` and read
+Apply the workflow inspection steps above: archive is a configured command, not a built-in. For an argv move shortcut, its `--dry-run` invokes the built-in move preview; shell recipes and external helpers need their own verified preview contract. Load destination `bs context SHELF --json` and read
 its guidance/requirements before moving. Preview with `bs move ID DESTINATION
 --dry-run --json` (or the configured move alias), then execute and validate the
 destination shelf. Report the new ID; old IDs stop resolving. Moves preserve

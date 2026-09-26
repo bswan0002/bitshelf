@@ -3,7 +3,7 @@
 Release/source tooling pins Rust **1.98.1**, Usage library/CLI **6.11.1**,
 Python **3.12.9**, and Node **24.21.0** for
 documentation. Cargo.lock/package-lock.json are committed. Runtime bs needs none
-of Python, Node or Usage CLI; external helper aliases may have their own runtime.
+of Python, Node or Usage CLI; external helpers may have their own runtime. Shell recipes require `/bin/bash` and use `errexit`/`pipefail`; argv aliases require no shell.
 CI actions are pinned to upstream commit SHAs, verified from their upstream tags.
 
 The separately declared Rust minimum is **1.91**. Build, test and warnings-denied
