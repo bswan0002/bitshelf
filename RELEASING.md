@@ -76,3 +76,58 @@ tap; it refuses to interfere with an existing bitshelf keg. It exercises install
 test, a formula-revision upgrade, retest and uninstall. See
 [verification](docs/verification.md) for actual local evidence and remaining
 native-platform gates.
+
+## First-release hold and exact next steps
+
+Preparation is complete locally; public verification and publication remain open
+in ticket 27 by the maintainer's instruction. Local evidence is in
+[verification](docs/verification.md). No release tag, assets, tap or documentation
+site was published by this work. The installed prototype `bs` was preserved.
+
+Read-only inspection during preparation found only the `github-pages`
+environment, no repository-level variables/secrets, and no accessible
+`bswan0002/homebrew-tap` repository. An inaccessible repository is not proof that
+it does not exist. Before publication, confirm/create that intended personal tap
+and configure the following; no credentials should be committed:
+
+- `release` environment with required maintainer reviewers.
+- `homebrew` environment with required maintainer reviewers, `TAP_REPOSITORY`
+  variable set to `bswan0002/homebrew-tap`, and `TAP_TOKEN` secret limited to
+  contents-write on that tap. The tap needs an initialized default branch.
+- Native Apple Silicon, Intel and Linux runners. All release matrix jobs must
+  succeed; Rosetta results do not replace native Intel checks.
+
+After the maintainer says to publish:
+
+1. Review the clean commit, changelog, support/signing deferrals and version.
+   Push that reviewed source and an annotated `v0.1.0` tag without moving any
+   existing tag. The tag must include the prepared workflows.
+2. Dispatch **Release candidate**, `tag=v0.1.0`, `publish=false`. Inspect all
+   source, docs, extracted-archive and Homebrew jobs and download the
+   `verified-release` artifact. Verify its complete three-target SHA256SUMS.
+3. Dispatch again with `publish=true` and approve the `release` environment only
+   after that run's checks pass. This creates/verifies the draft before publishing.
+   Once public, never rerun the release builder for that version.
+4. Dispatch **Update or recover stable tap** with `tag=v0.1.0` and approve the
+   `homebrew` environment. This downloads the published artifacts, verifies all
+   checksums and generates the formula. It refuses unpublished/prerelease tags,
+   downgrades and different formula bytes for the same version. A byte-identical
+   retry is a no-op. No release assets are rebuilt, uploaded or changed.
+5. From a fresh machine, `brew install bswan0002/tap/bitshelf`, `brew test bitshelf`,
+   verify the matching skill/docs and record the release/tap URLs in ticket 27.
+   Check the real upgrade path at the next release (the local first-release test
+   uses a controlled formula revision). Publish development docs only through
+   the separate Documentation workflow's explicit `deploy=true` dispatch.
+
+A tap push rejected because its branch advanced is safe to retry through the
+same tap workflow: it checks out the latest branch and revalidates the published
+bytes. An intentional same-version formula repair requires maintainer review and
+a manual tap-only change; the conservative workflow will not overwrite it.
+Never solve tap failures by deleting/rebuilding the immutable GitHub release.
+For a local review without remote writes, run:
+
+```sh
+python3.12 -B scripts/prepare-tap.py --tag v0.1.0 --output /tmp/bitshelf.rb
+```
+
+That command intentionally fails until a stable release actually exists.

@@ -29,8 +29,10 @@ jobs:
       - run: cargo install usage-cli --version 6.11.1 --locked
       - run: cargo build --locked && bash scripts/generate-docs.sh
       - run: npm ci && npm run docs:build
-      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
-      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+      - if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy }}
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: docs/.vitepress/dist
   deploy:

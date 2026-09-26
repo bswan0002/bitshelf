@@ -1,0 +1,52 @@
+name: Update or recover stable tap
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Already-published immutable stable release tag
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: stable-homebrew-tap
+  cancel-in-progress: false
+jobs:
+  tap:
+    runs-on: ubuntu-22.04
+    environment: homebrew
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12.9'
+      - name: Check tap configuration
+        env:
+          TAP_REPOSITORY: ${{ vars.TAP_REPOSITORY }}
+          TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+        run: |
+          test -n "$TAP_REPOSITORY" && test -n "$TAP_TOKEN"
+          test "$TAP_REPOSITORY" != "$GITHUB_REPOSITORY"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ vars.TAP_REPOSITORY }}
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap-checkout
+      - name: Verify immutable release and update formula
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 -B scripts/prepare-tap.py --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --output tap-checkout/Formula/bitshelf.rb
+          cd tap-checkout
+          git diff --check
+          if git diff --quiet && test -z "$(git ls-files --others --exclude-standard)"; then
+            echo "Tap already matches verified release"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Formula/bitshelf.rb
+          git commit -m "bitshelf $RELEASE_TAG"
+          git push
