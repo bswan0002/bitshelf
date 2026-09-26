@@ -29,6 +29,18 @@ jobs:
       - run: python3 -B scripts/test_tap.py
       - run: python3 scripts/check-workflows.py
       - run: python3 scripts/notices.py --check
+  msrv:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # pinned action
+        with:
+          toolchain: '1.91.0'
+          components: clippy
+      - uses: Swatinem/rust-cache@bc2d2e71bd35c5549942babaa51a89c586b981d1 # v2.8.1
+      - run: cargo +1.91.0 build --locked
+      - run: cargo +1.91.0 test --locked
+      - run: cargo +1.91.0 clippy --all-targets --locked -- -D warnings
   docs:
     runs-on: ubuntu-22.04
     steps:

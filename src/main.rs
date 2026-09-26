@@ -434,7 +434,7 @@ fn run(args: Bs) -> Result<()> {
         }
         Commands::Open(mut c) => {
             usage_check(
-                !(c.pick && !c.target.is_empty()),
+                !c.pick || c.target.is_empty(),
                 "--pick cannot be combined with explicit targets",
             )?;
             if c.pick {

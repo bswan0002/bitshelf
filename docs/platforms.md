@@ -1,10 +1,17 @@
 # Build and platform boundaries
 
-Release/source tooling pins Rust **1.98.1** (the tested, conservatively declared
-minimum), Usage library/CLI **6.11.1**, Python **3.12.9**, and Node **24.21.0** for
+Release/source tooling pins Rust **1.98.1**, Usage library/CLI **6.11.1**,
+Python **3.12.9**, and Node **24.21.0** for
 documentation. Cargo.lock/package-lock.json are committed. Runtime bs needs none
 of Python, Node or Usage CLI; external helper aliases may have their own runtime.
 CI actions are pinned to upstream commit SHAs, verified from their upstream tags.
+
+The separately declared Rust minimum is **1.91**. Build, test and warnings-denied
+Clippy passed locally with 1.91.0; CI has an explicit locked-graph MSRV job.
+The locked Usage 6.11.1 crates declare 1.91, so a successful experimental 1.89
+build with `--ignore-rust-version` is not a supported minimum. An experimental
+1.88 build fails on the standard-library file-lock API (stable since 1.89).
+Inside the checkout, rustup still selects 1.98.1 unless explicitly overridden.
 
 | Archive | Build/test environment | Runtime support claim |
 | --- | --- | --- |
