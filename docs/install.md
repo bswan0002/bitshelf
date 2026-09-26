@@ -4,7 +4,7 @@
 
 ## From source (recommended)
 
-Install stable Rust with [rustup](https://rustup.rs), then in a bitshelf checkout:
+Install the pinned Rust toolchain (rust-toolchain.toml; see [platforms](platforms.md)) with [rustup](https://rustup.rs), then in a bitshelf checkout:
 
 ```sh
 cargo install --path . --locked
@@ -44,6 +44,8 @@ Targets:
 
 - macOS Apple Silicon (`aarch64-apple-darwin`)
 - macOS Intel (`x86_64-apple-darwin`)
-- Linux x86-64 (`x86_64-unknown-linux-gnu`, built on Ubuntu 22.04; requires a compatible glibc)
+- Linux x86-64 (`x86_64-unknown-linux-gnu`, built/tested on Ubuntu 22.04; glibc 2.35 baseline)
 
 Prototype macOS archives are **unsigned and unnotarized**, so Gatekeeper may block browser downloads. Windows and Linux ARM are deferred.
+
+Exact tooling, runtime minimums, per-platform evidence gates and BUILD-INFO.json are described in [platform support](platforms.md).
