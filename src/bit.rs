@@ -1,8 +1,8 @@
 use crate::config::ShelfConfig;
+use crate::metadata::{Mapping, Value};
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use serde_yaml::{Mapping, Value};
 use std::path::PathBuf;
 
 #[derive(Serialize)]
@@ -28,12 +28,14 @@ pub fn parse(raw: &str) -> Result<(Mapping, &str)> {
     for line in raw[start..].split_inclusive('\n') {
         if line.trim_end_matches(['\r', '\n']) == "---" {
             let yaml = &raw[start..offset];
-            let value: Value = serde_yaml::from_str(yaml).context("malformed YAML frontmatter")?;
+            let value = crate::metadata::from_yaml(
+                serde_yaml::from_str(yaml).context("malformed YAML frontmatter")?,
+            )?;
             let map = if value.is_null() {
                 Mapping::new()
             } else {
                 value
-                    .as_mapping()
+                    .as_object()
                     .context("frontmatter must be a mapping")?
                     .clone()
             };
@@ -58,21 +60,21 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         }
     };
     for key in &cfg.required {
-        if !map.contains_key(Value::String(key.clone())) {
+        if !map.contains_key(key) {
             errors.push(format!("missing required field: {key}"));
         }
     }
     for (key, value) in &map {
-        let valid = match key.as_str() {
+        let valid = match Some(key.as_str()) {
             Some("title") => value.as_str().is_some_and(|s| !s.trim().is_empty()),
             Some("tags") => value
-                .as_sequence()
+                .as_array()
                 .is_some_and(|a| a.iter().all(|v| v.as_str().is_some())),
             Some("created" | "updated" | "expires") => timestamp(value).is_some(),
             _ => true,
         };
         if !valid {
-            let field = key.as_str().unwrap_or("metadata field");
+            let field = key.as_str();
             let expected = match field {
                 "title" => "a nonempty string",
                 "tags" => "a list of strings",
@@ -88,7 +90,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         .map(str::to_owned);
     let tags: Vec<String> = map
         .get("tags")
-        .and_then(Value::as_sequence)
+        .and_then(Value::as_array)
         .map(|a| {
             a.iter()
                 .filter_map(Value::as_str)
@@ -99,7 +101,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
     // Avoid namespace diagnostics derived from malformed tag metadata.
     let tags_well_formed = map.get("tags").is_none_or(|value| {
         value
-            .as_sequence()
+            .as_array()
             .is_some_and(|items| items.iter().all(|v| v.as_str().is_some()))
     });
     if tags_well_formed {
@@ -136,7 +138,7 @@ pub fn inspect(id: String, path: PathBuf, raw: &str, cfg: &ShelfConfig) -> Bit {
         path,
         title,
         tags,
-        metadata: serde_json::to_value(&map).unwrap_or(serde_json::Value::Null),
+        metadata: Value::Object(map.clone()),
         errors,
         body: body.to_string(),
         expires,
@@ -163,7 +165,7 @@ pub fn create(
     if let Some(tags) = tags {
         map.insert(
             "tags".into(),
-            serde_yaml::to_value(
+            serde_json::to_value(
                 tags.split(',')
                     .map(str::trim)
                     .filter(|s| !s.is_empty())

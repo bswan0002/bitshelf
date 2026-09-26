@@ -5,9 +5,11 @@ mod completion;
 mod config;
 mod context;
 mod editor;
+mod identity;
 mod input;
 mod interactive;
 mod lifecycle;
+mod metadata;
 mod moving;
 mod output;
 mod prune;
@@ -470,42 +472,7 @@ fn run(args: Bs) -> Result<()> {
             Ok(())
         }
         Commands::Prune(c) => {
-            let mut state = if c.dry_run {
-                None
-            } else {
-                Some(lifecycle::State::load(&store, true)?)
-            };
-            let now = Utc::now();
-            let bits = store.bits(c.shelf.as_deref())?;
-            let mut results = vec![];
-            let mut failed = false;
-            for b in bits {
-                let shelf = b.id.split('/').next().unwrap();
-                match prune::decide(&b, &store.settings(shelf)?, now) {
-                    prune::Decision::Keep => continue,
-                    prune::Decision::Skip(error) => {
-                        eprintln!("warning: {}: {error}; skipped", b.id);
-                        results.push(
-                            json!({"id":b.id,"path":b.path,"status":"skipped","error":error}),
-                        );
-                        failed = true;
-                        continue;
-                    }
-                    prune::Decision::Remove => (),
-                }
-                store.safe(&b.path)?;
-                if !c.dry_run {
-                    fs::remove_file(&b.path)
-                        .with_context(|| format!("cannot remove {}", b.path.display()))?;
-                    state.as_mut().unwrap().forget(&b.id);
-                }
-                results.push(json!({"id":b.id,"path":b.path,"status":if c.dry_run {"would_remove"} else {"removed"}}));
-            }
-            if let Some(state) = state {
-                state.save(&store).context(
-                    "pruning may have removed files, but tracking state could not be saved; fix the error and run bs sync",
-                )?;
-            }
+            let (results, failed) = prune::run(&store, c)?;
             let human = results
                 .iter()
                 .map(|r| {

@@ -137,7 +137,7 @@ impl State {
     }
 }
 
-pub fn render(map: &serde_yaml::Mapping, body: &str) -> Result<String> {
+pub fn render(map: &crate::metadata::Mapping, body: &str) -> Result<String> {
     Ok(format!("---\n{}---\n{body}", serde_yaml::to_string(map)?))
 }
 fn hash(raw: &str) -> Result<String> {
@@ -183,8 +183,9 @@ pub fn reconcile(
     let (mut map, body) = bit::parse(raw)?;
     let mut rewritten = false;
     for (key, value) in [("created", entry.created), ("updated", entry.updated)] {
-        let value =
-            serde_yaml::Value::String(value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true));
+        let value = crate::metadata::Value::String(
+            value.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true),
+        );
         // Retain existing formatting if it represents the same instant.
         if map.get(key).and_then(bit::timestamp) != bit::timestamp(&value) {
             map.insert(key.into(), value);
@@ -333,7 +334,7 @@ pub fn edit(store: &Store, args: crate::cli::Edit, json: bool) -> Result<serde_j
         if let Some(tags) = args.tags {
             map.insert(
                 "tags".into(),
-                serde_yaml::to_value(
+                serde_json::to_value(
                     tags.split(',')
                         .map(str::trim)
                         .filter(|s| !s.is_empty())

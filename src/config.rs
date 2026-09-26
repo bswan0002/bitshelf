@@ -135,15 +135,9 @@ where
 }
 
 pub fn name(s: &str) -> Result<()> {
-    ensure!(
-        !s.trim().is_empty()
-            && !s.starts_with('.')
-            && !s.contains(['/', '\\'])
-            && !s.chars().any(char::is_control),
-        "invalid name {s:?}: use a non-hidden single path component without separators or control characters"
-    );
-    Ok(())
+    crate::identity::name(s)
 }
+
 pub fn retention(s: &str) -> Result<chrono::Duration> {
     let days: i64 = s
         .strip_suffix('d')

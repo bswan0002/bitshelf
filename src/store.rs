@@ -147,14 +147,8 @@ impl Store {
             .collect()
     }
     pub fn bit_path(&self, id: &str) -> Result<PathBuf> {
-        let parts: Vec<_> = id.split('/').collect();
-        ensure!(
-            parts.len() == 2,
-            "expected shelf/bit-name identifier (without .md)"
-        );
-        config::name(parts[0])?;
-        config::name(parts[1])?;
-        let p = self.bits_path(parts[0])?.join(format!("{}.md", parts[1]));
+        let id = crate::identity::BitId::parse(id)?;
+        let p = self.bits_path(id.shelf)?.join(format!("{}.md", id.name));
         self.safe(&p)?;
         Ok(p)
     }
@@ -212,7 +206,7 @@ impl Store {
                 if !e.file_type()?.is_file() {
                     continue;
                 }
-                let id = format!("{s}/{}", p.file_stem().unwrap().to_string_lossy());
+                let id = crate::identity::discovered(&s, &p)?;
                 match fs::read_to_string(&p) {
                     Ok(raw) => {
                         let bit = bit::inspect(id, p, &raw, &cfg);

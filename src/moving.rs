@@ -28,20 +28,11 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         raw
     } else {
         let (mut metadata, body) = bit::parse(&raw)?;
-        for assignment in &args.set {
-            let (key, value) = assignment
-                .split_once('=')
-                .context("--set requires KEY=VALUE")?;
-            ensure!(
-                !key.trim().is_empty() && !key.chars().any(char::is_control),
-                "invalid metadata key"
-            );
-            ensure!(
-                !["created", "updated"].contains(&key),
-                "{key} is reserved and managed automatically"
-            );
-            metadata.insert(key.into(), value.into());
+        crate::metadata::Mutation {
+            set: args.set.clone(),
+            ..Default::default()
         }
+        .apply(&mut metadata)?;
         lifecycle::render(&metadata, body)?
     };
     let (after, entry, _) = lifecycle::reconcile(&after, Some(&entry), now)?;
