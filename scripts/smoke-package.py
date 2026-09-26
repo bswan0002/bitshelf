@@ -2,18 +2,28 @@
 """Exercise an extracted archive without checkout dependencies or user configuration."""
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
+import re
 import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
 
+MACOS_MINOS = '15.0'
+spec = importlib.util.spec_from_file_location('build_info', Path(__file__).with_name('build-info.py'))
+build_info = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(build_info)
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('archive', type=Path)
 parser.add_argument('--tag', required=True)
 parser.add_argument('--target', required=True)
+parser.add_argument('--commit', help='Require BUILD-INFO source_commit to equal this full SHA and a clean source tree')
 args = parser.parse_args()
+if args.commit is not None and not re.fullmatch(r'[0-9a-f]{40}', args.commit):
+    raise SystemExit('--commit must be a full lowercase SHA-1')
 with tempfile.TemporaryDirectory(prefix='bs-package-smoke-') as directory:
     base = Path(directory)
     package = base / 'package'
@@ -33,7 +43,15 @@ with tempfile.TemporaryDirectory(prefix='bs-package-smoke-') as directory:
     info = json.loads((package / 'BUILD-INFO.json').read_text())
     if info['target'] != args.target:
         raise SystemExit('Build-info target mismatch')
+    if args.commit is not None and (info.get('source_commit') != args.commit or info.get('source_dirty') is not False):
+        raise SystemExit(f"Build-info source {info.get('source_commit')} (dirty={info.get('source_dirty')}) is not clean pinned commit {args.commit}")
+    if hashlib.sha256((package / 'bs').read_bytes()).hexdigest() != info.get('binary_sha256'):
+        raise SystemExit('Build-info binary_sha256 does not match the packaged bs')
     assert hashlib.sha256((package / 'runtime-notices/COPYRIGHT-library.html').read_bytes()).hexdigest() == info['rust_runtime_notices_sha256']
+    if args.target.endswith('apple-darwin'):
+        minos = build_info.macos_minos(package / 'bs')
+        if minos != MACOS_MINOS or info.get('macos_minos') != minos:
+            raise SystemExit(f"macOS minimum mismatch: binary {minos}, BUILD-INFO {info.get('macos_minos')}, required {MACOS_MINOS}")
     architecture = subprocess.check_output(['/usr/bin/file', str(package / 'bs')], text=True)
     expected = 'arm64' if args.target == 'aarch64-apple-darwin' else 'x86_64' if args.target.endswith('apple-darwin') else 'x86-64'
     if expected not in architecture:

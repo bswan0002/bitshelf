@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix='bs-package-') as directory:
             destination = staging / 'docs' / source.relative_to(ROOT / 'docs')
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
-    info = subprocess.check_output([sys.executable, str(ROOT / 'scripts/build-info.py'), args.target], cwd=ROOT, text=True)
+    info = subprocess.check_output([sys.executable, str(ROOT / 'scripts/build-info.py'), args.target, str(staging / 'bs')], cwd=ROOT, text=True)
     (staging / 'BUILD-INFO.json').write_text(info)
     sysroot = Path(subprocess.check_output(['rustc', '--print', 'sysroot'], text=True).strip())
     runtime_notices = staging / 'runtime-notices'

@@ -12,14 +12,35 @@ checks package/tag/executable consistency without network access.
 ## Trigger and approval
 
 The release workflow is manual, not triggered by pushes or tags. Prepare and
-review an annotated tag matching the intended commit. After explicit maintainer
-approval, push that tag and dispatch **Release candidate** with that tag and
-`publish=false`. This builds and verifies artifacts without creating a GitHub
-release. Inspect all matrix, documentation and package checks. Dispatch with
-`publish=true` only for approved publication. The `release` GitHub environment
-must have required reviewers configured; only the publication job has repository
-contents-write permission. Local scripts are powerful maintainer tools: invoking
+review an annotated tag matching the intended commit; lightweight tags are
+refused. GitHub runs the workflow definition from the dispatch ref, so dispatch
+from `main` or from the release tag itself (any other ref is refused). Sources,
+release scripts and archives always come from the tag's commit: preflight
+resolves `refs/tags/<tag>` to one commit SHA, and every later job checks out that
+SHA rather than re-resolving the tag. Each archive's BUILD-INFO.json
+`source_commit` must equal it, and publication re-checks through the GitHub API
+that the remote tag still points at it immediately before creating and before
+publishing the release. Only the publication job has repository contents-write
+permission. Local scripts are powerful maintainer tools: invoking
 `release.py publish` is an explicit publication action.
+
+`publish=false` builds and verifies without creating a GitHub release; it still
+requires an existing annotated tag matching Cargo, the changelog and skill
+VERSION. If a rehearsal is desired before allocating the final stable tag,
+prepare a separate prerelease version (for example `0.1.0-rc.1`) and matching
+`v0.1.0-rc.1` tag. Fix source failures in a new candidate version/tag; never move
+the old tag. Prerelease runs skip the stable Homebrew formula test, so they do
+not replace final stable package gates. Restore stable version metadata and
+pass CI before tagging `v0.1.0`.
+
+Rehearsal artifacts are not promoted: a second dispatch rebuilds, BUILD-INFO.json
+records runner-image fields so bytes can differ, and the draft-retry guard
+refuses differing assets if an unpublished draft already exists. The real
+release is one `publish=true` run: its publication job starts only after all
+build, verification, package and documentation jobs pass, then waits at the
+`release` environment approval. Review that same run's checks and its
+`verified-release` artifact while it waits, then approve. Retry a transient
+failure with **Re-run failed jobs** on the same run instead of dispatching again.
 
 Supported tag forms are `vMAJOR.MINOR.PATCH` and
 `vMAJOR.MINOR.PATCH-(alpha|beta|rc).N`, with no leading zeroes or build metadata.
@@ -44,8 +65,8 @@ runs, not independent administrative changes.
 
 A tap failure after publication does not roll back the release. Retry only the tap
 update using published immutable checksums/artifacts. Never rebuild or overwrite
-a release just to repair a tap. Installation/docs/signing/platform gates are
-specified below as the preparation tickets land.
+a release just to repair a tap. The tap workflow refuses releases whose GitHub
+`immutable` flag is not true.
 
 ## Signing and credentials
 
@@ -54,18 +75,23 @@ independent attestations; include docs/signing.md's limitations in release notes
 Source builds are the fallback for blocked browser downloads. Action SHAs are
 pinned, build jobs are read-only, and publication requires the release environment.
 Restrict any tap token to contents-write on that one tap repository. Follow-up
-signing/attestation work is recorded in the policy and bs-decisions shelf.
+signing/attestation work is listed in docs/signing.md.
 
 ## Package checks before publication
 
-Install the pinned Rust toolchain with its `rust-docs` component (the archive
-includes Rust runtime copyright/license notices), Python 3.12 and Usage 6.11.1.
-Build with `MACOSX_DEPLOYMENT_TARGET=15.0` on macOS. Generate docs with
+Install the pinned Rust toolchain, Python 3.12 and Usage 6.11.1. The archive
+includes the Rust runtime copyright/license notices from the toolchain sysroot's
+`share/doc/rust/` (`COPYRIGHT-library.html` and `licenses/`), which the `rustc`
+component installs even with the minimal profile; `rust-docs` is not needed.
+Build with `MACOSX_DEPLOYMENT_TARGET=15.0` on macOS; the package smoke test
+requires the binary's own `LC_BUILD_VERSION` minos to be 15.0 and BUILD-INFO's
+`binary_sha256` to match the packaged `bs`. Release builds run without a Rust
+build cache. Generate docs with
 `BS=target/<target>/release/bs bash scripts/generate-docs.sh`. From a clean checkout:
 
 ```sh
 python3.12 scripts/package.py --tag v0.1.0 --target <target> --binary target/<target>/release/bs
-python3.12 scripts/smoke-package.py dist/archives/bitshelf-v0.1.0-<target>.tar.gz --tag v0.1.0 --target <target>
+python3.12 scripts/smoke-package.py dist/archives/bitshelf-v0.1.0-<target>.tar.gz --tag v0.1.0 --target <target> --commit "$(git rev-parse HEAD)"
 ```
 
 Production formula generation requires the real checksums for all three targets.
@@ -79,21 +105,23 @@ native-platform gates.
 
 ## First-release hold and exact next steps
 
-Preparation is complete locally; public verification and publication remain open
-in ticket 27 by the maintainer's instruction. Local evidence is in
-[verification](docs/verification.md). No release tag, assets, tap or documentation
-site was published by this work. After explicit maintainer approval, the sole
-installed prototype `bs` and agent skill were replaced with this 0.1.0 candidate.
-The candidate read and validated the real store before replacement; old state
-files are ignored, and the local ticket helper now requires collection envelopes.
+No public release, tag, tap or documentation site has been published yet; local
+evidence is in [verification](docs/verification.md).
 
 Read-only inspection during preparation found only the `github-pages`
 environment, no repository-level variables/secrets, and no accessible
 `bswan0002/homebrew-tap` repository. An inaccessible repository is not proof that
-it does not exist. Before publication, confirm/create that intended personal tap
-and configure the following; no credentials should be committed:
+it does not exist. Before any `publish=true` dispatch, confirm/create that
+intended personal tap and configure the following; no credentials should be
+committed:
 
-- `release` environment with required maintainer reviewers.
+- GitHub immutable releases enabled for the repository, so published assets and
+  their tag cannot be changed. The tap workflow refuses non-immutable releases.
+- A tag ruleset protecting `v*` tags against update and deletion (and limiting
+  who may create them).
+- `release` environment with required maintainer reviewers. Create it first:
+  GitHub auto-creates a missing environment referenced by a job with no
+  protection rules, which would let publication run unapproved.
 - `homebrew` environment with required maintainer reviewers, `TAP_REPOSITORY`
   variable set to `bswan0002/homebrew-tap`, and `TAP_TOKEN` secret limited to
   contents-write on that tap. The tap needs an initialized default branch.
@@ -102,22 +130,31 @@ and configure the following; no credentials should be committed:
 
 After the maintainer says to publish:
 
-1. Review the clean commit, changelog, support/signing deferrals and version.
-   Push that reviewed source and an annotated `v0.1.0` tag without moving any
-   existing tag. The tag must include the prepared workflows.
-2. Dispatch **Release candidate**, `tag=v0.1.0`, `publish=false`. Inspect all
-   source, docs, extracted-archive and Homebrew jobs and download the
-   `verified-release` artifact. Verify its complete three-target SHA256SUMS.
-3. Dispatch again with `publish=true` and approve the `release` environment only
-   after that run's checks pass. This creates/verifies the draft before publishing.
-   Once public, never rerun the release builder for that version.
+1. Push the reviewed source to `main` and get all CI jobs green. Confirm the
+   environments, immutable releases and tag protection above are configured.
+   If rehearsing, do so now with a separate matching prerelease version/tag as
+   described above, using `publish=false`. Source corrections get a new rc tag.
+2. Review the final stable commit, changelog, support/signing deferrals and
+   matching Cargo/skill version `0.1.0`; get that commit's CI green. Create and
+   push annotated `v0.1.0` pointing to it. The tag includes the prepared
+   workflows and must never move, even if subsequent package gates fail.
+   Source fixes after this point require a new version/tag; only transient
+   failures can be retried against the same tagged source.
+3. Dispatch **Release candidate**, `tag=v0.1.0`, `publish=true`. While the
+   publication job waits at the `release` environment, inspect that run's
+   source, docs, extracted-archive and Homebrew jobs, download its
+   `verified-release` artifact and verify the complete three-target SHA256SUMS
+   and each BUILD-INFO.json `source_commit` (the pinned SHA is in the preflight
+   step summary). Approve only then; publication creates and verifies a draft
+   before publishing it. Use **Re-run failed jobs** on that run for transient
+   failures. Once public, never rerun the release builder for that version.
 4. Dispatch **Update or recover stable tap** with `tag=v0.1.0` and approve the
    `homebrew` environment. This downloads the published artifacts, verifies all
    checksums and generates the formula. It refuses unpublished/prerelease tags,
    downgrades and different formula bytes for the same version. A byte-identical
    retry is a no-op. No release assets are rebuilt, uploaded or changed.
 5. From a fresh machine, `brew install bswan0002/tap/bitshelf`, `brew test bitshelf`,
-   verify the matching skill/docs and record the release/tap URLs in ticket 27.
+   verify the matching skill/docs and record the release/tap URLs.
    Check the real upgrade path at the next release (the local first-release test
    uses a controlled formula revision). Publish development docs only through
    the separate Documentation workflow's explicit `deploy=true` dispatch.

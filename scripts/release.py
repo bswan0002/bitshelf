@@ -6,9 +6,11 @@ import tempfile
 import json
 import re
 import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 
+COMMIT = re.compile(r'[0-9a-f]{40}')
 TAG = re.compile(r'v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(alpha|beta|rc)\.(0|[1-9]\d*))?')
 
 
@@ -57,11 +59,41 @@ def require_unpublished(repo, tag):
     return state
 
 
+def tag_commit(repo, tag):
+    """Resolve refs/tags/<tag> on GitHub; require an annotated tag of a commit."""
+    if not TAG.fullmatch(tag):
+        raise ValueError('Invalid release tag')
+    ref = json.loads(gh('api', f'repos/{repo}/git/ref/tags/{tag}'))
+    if not isinstance(ref, dict) or ref.get('ref') != f'refs/tags/{tag}':
+        raise ValueError(f'Remote tag refs/tags/{tag} is missing or ambiguous')
+    if ref.get('object', {}).get('type') != 'tag':
+        raise ValueError(f'Release tag {tag} must be an annotated tag')
+    annotated = json.loads(gh('api', f"repos/{repo}/git/tags/{ref['object']['sha']}"))
+    target = annotated.get('object', {}) if isinstance(annotated, dict) else {}
+    if target.get('type') != 'commit' or not COMMIT.fullmatch(str(target.get('sha'))):
+        raise ValueError(f'Release tag {tag} must point directly at a commit')
+    return target['sha']
+
+
+def require_tag_commit(repo, tag, commit):
+    actual = tag_commit(repo, tag)
+    if actual != commit:
+        raise ValueError(f'Remote refs/tags/{tag} points at {actual}, not the pinned release commit {commit}; tags must never move')
+
+
 def archive_names(tag):
     return [f'bitshelf-{tag}-{target}.tar.gz' for target in TARGETS]
 
 
-def verify_artifacts(directory, tag):
+def build_info(archive):
+    with tarfile.open(archive) as tar:
+        member = tar.getmember('BUILD-INFO.json')
+        if not member.isfile():
+            raise ValueError(f'Invalid BUILD-INFO.json in {archive.name}')
+        return json.loads(tar.extractfile(member).read())
+
+
+def verify_artifacts(directory, tag, commit=None):
     directory = Path(directory)
     expected = set(archive_names(tag))
     found = {p.name for p in directory.glob('*.tar.gz')}
@@ -78,18 +110,27 @@ def verify_artifacts(directory, tag):
     for filename, digest in sums.items():
         if hashlib.sha256((directory / filename).read_bytes()).hexdigest() != digest:
             raise ValueError(f'Checksum mismatch: {filename}')
+    if commit is not None:
+        for target in TARGETS:
+            filename = f'bitshelf-{tag}-{target}.tar.gz'
+            info = build_info(directory / filename)
+            if info.get('source_commit') != commit or info.get('source_dirty') is not False or info.get('target') != target:
+                raise ValueError(f'{filename} was not built from clean pinned commit {commit} for {target}')
     return sorted(expected) + ['SHA256SUMS']
 
 
-def upload_and_publish(repo, info, directory):
-    names = verify_artifacts(directory, info['tag'])
+def upload_and_publish(repo, info, directory, commit):
+    if not COMMIT.fullmatch(commit):
+        raise ValueError('Pinned release commit must be a full lowercase SHA-1')
+    names = verify_artifacts(directory, info['tag'], commit)
     state = require_unpublished(repo, info['tag'])
+    require_tag_commit(repo, info['tag'], commit)
     with tempfile.TemporaryDirectory(prefix='bs-release-') as work:
         notes = Path(work) / 'notes.md'
         notes.write_text(info['notes'] + '\n')
         if state is None:
             options = ['--prerelease'] if info['prerelease'] else []
-            gh('release', 'create', info['tag'], '--repo', repo, '--verify-tag', '--draft', '--title', info['tag'], '--notes-file', notes, *options)
+            gh('release', 'create', info['tag'], '--repo', repo, '--verify-tag', '--target', commit, '--draft', '--title', info['tag'], '--notes-file', notes, *options)
         for filename in names:
             state = require_unpublished(repo, info['tag'])
             if state is None:
@@ -110,8 +151,9 @@ def upload_and_publish(repo, info, directory):
         downloaded = Path(work) / 'verified'
         downloaded.mkdir()
         gh('release', 'download', info['tag'], '--repo', repo, '--dir', downloaded)
-        verify_artifacts(downloaded, info['tag'])
+        verify_artifacts(downloaded, info['tag'], commit)
         require_unpublished(repo, info['tag'])
+        require_tag_commit(repo, info['tag'], commit)
         gh('release', 'edit', info['tag'], '--repo', repo, '--notes-file', notes,
            '--prerelease=' + str(info['prerelease']).lower(), '--draft=false')
 
@@ -128,17 +170,23 @@ def main():
             sub.add_argument('--repo', required=True)
         if command in ['publish', 'verify-artifacts']:
             sub.add_argument('--directory', type=Path, required=True)
+        if command in ['preflight', 'publish', 'verify-artifacts']:
+            sub.add_argument('--commit', required=command != 'verify-artifacts',
+                             help='Pinned release commit (full SHA) that refs/tags/<tag> must resolve to')
     args = parser.parse_args()
     version = tomllib.loads(Path('Cargo.toml').read_text())['package']['version']
     info = metadata(args.tag, version, Path('CHANGELOG.md').read_text(), args.binary)
     if args.notes_out:
         args.notes_out.write_text(info['notes'] + '\n')
+    if getattr(args, 'commit', None) is not None and not COMMIT.fullmatch(args.commit):
+        raise ValueError('--commit must be a full lowercase SHA-1')
     if args.command == 'preflight':
         require_unpublished(args.repo, args.tag)
+        require_tag_commit(args.repo, args.tag, args.commit)
     elif args.command == 'publish':
-        upload_and_publish(args.repo, info, args.directory)
+        upload_and_publish(args.repo, info, args.directory, args.commit)
     elif args.command == 'verify-artifacts':
-        verify_artifacts(args.directory, args.tag)
+        verify_artifacts(args.directory, args.tag, args.commit)
     print(json.dumps(info))
 
 

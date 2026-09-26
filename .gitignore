@@ -27,3 +27,6 @@ docs/.vitepress/dist/
 dist/
 staging/
 *.tar.gz
+
+# Python bytecode
+__pycache__/

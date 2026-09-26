@@ -6,11 +6,17 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
-import release
 
-spec = importlib.util.spec_from_file_location('formula', Path(__file__).with_name('homebrew-formula.py'))
-formula = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(formula)
+
+def load(name, filename):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(filename))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+release = load('release', 'release.py')
+formula = load('formula', 'homebrew-formula.py')
 
 
 def validate_publication(state, tag):
@@ -18,6 +24,9 @@ def validate_publication(state, tag):
         raise ValueError('Only stable release tags can update the tap')
     if not state or state.get('draft') is not False or state.get('prerelease') is not False or state.get('tag_name') != tag:
         raise ValueError('Require an existing published stable release')
+    if state.get('immutable') is not True:
+        raise ValueError('Release is not immutable; enable GitHub immutable releases before publishing. '
+                         'Refusing to point the tap at mutable release assets')
 
 
 def check_update(current, candidate, tag):

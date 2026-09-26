@@ -10,10 +10,14 @@ spec.loader.exec_module(tap)
 
 class TapTests(unittest.TestCase):
     def test_published_stable_only(self):
-        state = {'tag_name': 'v0.1.0', 'draft': False, 'prerelease': False}
+        state = {'tag_name': 'v0.1.0', 'draft': False, 'prerelease': False, 'immutable': True}
         tap.validate_publication(state, 'v0.1.0')
-        for candidate in [None, {}, state | {'draft': True}, state | {'prerelease': True}, state | {'tag_name': 'v0.2.0'}]:
+        mutable = [state | {'immutable': False}, {k: v for k, v in state.items() if k != 'immutable'}]
+        for candidate in [None, {}, state | {'draft': True}, state | {'prerelease': True}, state | {'tag_name': 'v0.2.0'}, *mutable]:
             with self.assertRaises(ValueError):
+                tap.validate_publication(candidate, 'v0.1.0')
+        for candidate in mutable:
+            with self.assertRaisesRegex(ValueError, 'immutable'):
                 tap.validate_publication(candidate, 'v0.1.0')
         with self.assertRaises(ValueError):
             tap.validate_publication(state, 'v0.1.0-rc.1')

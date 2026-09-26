@@ -19,11 +19,21 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       prerelease: ${{ steps.metadata.outputs.prerelease }}
+      sha: ${{ steps.metadata.outputs.sha }}
     steps:
+      - name: Require dispatch from main or the release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/main | "refs/tags/$RELEASE_TAG") ;;
+            *) echo "::error::Dispatch from main or refs/tags/$RELEASE_TAG, not $GITHUB_REF"; exit 1 ;;
+          esac
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag }}
+          ref: refs/tags/${{ inputs.tag }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12.9'
@@ -32,9 +42,15 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
-          python3 scripts/release.py preflight --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" > release-info.json
+          if [ "$(git cat-file -t "refs/tags/$RELEASE_TAG")" != tag ]; then
+            echo "::error::refs/tags/$RELEASE_TAG must be an annotated tag"; exit 1
+          fi
+          sha="$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")"
+          test "$(git rev-parse HEAD)" = "$sha"
+          python3 scripts/release.py preflight --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --commit "$sha" > release-info.json
           python3 -c 'import json,os; v=json.load(open("release-info.json")); open(os.environ["GITHUB_OUTPUT"],"a").write("prerelease="+str(v["prerelease"]).lower()+"\n")'
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned $RELEASE_TAG to $sha" >> "$GITHUB_STEP_SUMMARY"
   build:
     needs: preflight
     strategy:
@@ -52,16 +68,16 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # pinned action
         with:
           toolchain: '1.98.1'
           targets: ${{ matrix.target }}
-          components: rustfmt, clippy, rust-docs
+          components: rustfmt, clippy
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12.9'
-      - uses: Swatinem/rust-cache@bc2d2e71bd35c5549942babaa51a89c586b981d1 # v2.8.1
       - run: cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
       - run: python3 -B scripts/test_release.py
       - run: python3 -B scripts/test_formula.py
@@ -76,21 +92,24 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
         run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
           python3 scripts/package.py --tag "$RELEASE_TAG" --target "$TARGET" --binary "target/$TARGET/release/bs" --output-dir archives
-          python3 scripts/smoke-package.py "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" --tag "$RELEASE_TAG" --target "$TARGET"
+          python3 scripts/smoke-package.py "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" --tag "$RELEASE_TAG" --target "$TARGET" --commit "$RELEASE_SHA"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: package-${{ matrix.target }}
           path: archives/*.tar.gz
           if-no-files-found: error
   verify:
-    needs: build
+    needs: [preflight, build]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12.9'
@@ -101,16 +120,17 @@ jobs:
           merge-multiple: true
       - env:
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
         run: |
           (cd archives && sha256sum *.tar.gz > SHA256SUMS)
-          python3 scripts/release.py verify-artifacts --tag "$RELEASE_TAG" --directory archives
+          python3 scripts/release.py verify-artifacts --tag "$RELEASE_TAG" --directory archives --commit "$RELEASE_SHA"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: verified-release
           path: archives/
           if-no-files-found: error
   packages:
-    needs: verify
+    needs: [preflight, verify]
     strategy:
       matrix:
         include:
@@ -124,7 +144,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12.9'
@@ -136,11 +157,12 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
         run: |
           if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
             eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           fi
-          python3 scripts/smoke-package.py "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" --tag "$RELEASE_TAG" --target "$TARGET"
+          python3 scripts/smoke-package.py "archives/bitshelf-$RELEASE_TAG-$TARGET.tar.gz" --tag "$RELEASE_TAG" --target "$TARGET" --commit "$RELEASE_SHA"
           case "$RELEASE_TAG" in
             *-*) echo "Prerelease archive verified; stable Homebrew formula intentionally excluded" ;;
             *) python3 scripts/homebrew-formula.py "$RELEASE_TAG" archives/SHA256SUMS --base-url "file://$PWD/archives" > bitshelf.rb
@@ -152,7 +174,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # pinned action
         with:
           toolchain: '1.98.1'
@@ -165,7 +188,8 @@ jobs:
           cache: npm
       - run: cargo install usage-cli --version 6.11.1 --locked
       - run: cargo build --locked && bash scripts/generate-docs.sh
-      - run: git diff --exit-code -- docs/reference
+      - name: Require committed generated reference docs
+        run: test -z "$(git status --porcelain -- docs/reference)" || { git status --porcelain -- docs/reference; exit 1; }
       - run: python3 scripts/check-doc-links.py
       - run: npm ci && npm run docs:build
   publish:
@@ -178,7 +202,8 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.tag }}
+          ref: ${{ needs.preflight.outputs.sha }}
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12.9'
@@ -188,5 +213,6 @@ jobs:
           path: archives
       - env:
           RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ needs.preflight.outputs.sha }}
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/release.py publish --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --directory archives
+        run: python3 scripts/release.py publish --tag "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --directory archives --commit "$RELEASE_SHA"
