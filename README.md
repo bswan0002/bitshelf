@@ -1,6 +1,6 @@
 # bitshelf
 
-> **Early development — do not use bitshelf yet.** Commands, configuration, and file formats may change without backward compatibility, and bugs may cause data loss. Use disposable data only.
+> **Unpublished release candidate at preparation of this snapshot.** No stable release has been published yet. Source installation is available; Homebrew is the intended packaged path after publication. Check GitHub Releases for current availability and keep backups of important data.
 
 Agents let us work on more things in parallel, and useful work now outlives the session that produced it. **bitshelf gives that work a home outside any one conversation, repository, or worktree**: a store of ordinary Markdown shelves that people and agents both use through the `bs` executable.
 
@@ -12,9 +12,9 @@ Saving and retrieving are deliberate. This isn't automatic agent memory.
 
 **Documentation:** [bitshelf.benswanson.dev](https://bitshelf.benswanson.dev) · [Get started](docs/start.md) · [Recipes](docs/recipes/design-docs.md) · [Using with agents](docs/agents.md)
 
-## Quick start (development only)
+## Quick start (from source)
 
-Install a current stable [Rust toolchain](https://rustup.rs), then:
+Install [rustup](https://rustup.rs); the checkout selects the pinned Rust toolchain, then:
 
 ```sh
 git clone https://github.com/bswan0002/bitshelf.git
@@ -65,6 +65,6 @@ npm run docs:build
 
 The Rust CLI is synchronous, one application package, with no search index; Markdown is authoritative and timestamp comparison is command-local. A small documented Demand rendering patch lives in `vendor/demand` until fixed upstream. Tests use temporary stores, not your notes. Documentation pins VitePress 2 alpha. GitHub Actions is configured to test Linux/macOS, build release archives on manual dispatch, and deploy development docs only on explicit manual dispatch. Nothing is published or scheduled by local setup.
 
-Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64. See [Safety and recovery](docs/concepts/safety.md) for prototype boundaries.
+Initial targets are macOS Apple Silicon, macOS Intel, and Linux x86-64. See [Safety and recovery](docs/concepts/safety.md) for safety boundaries.
 
-Release archives include version-matched docs, skill, notices and build information. See [release matching](docs/releases.md), [compatibility](docs/compatibility.md), and [verification](docs/verification.md). Publication is still on hold pending the maintainer’s command.
+Release archives include version-matched docs, skill, notices and build information. See [release matching](docs/releases.md), [compatibility](docs/compatibility.md), and [verification](docs/verification.md). Publication was held during preparation pending the maintainer’s command; bundled docs are a release snapshot, not a live publication-status page.

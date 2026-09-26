@@ -7,7 +7,7 @@ Developer ID identity or notarization. Local inspection on macOS 15.7.4 showed
 `Signature=adhoc` and no TeamIdentifier. Gatekeeper's `spctl --assess --type execute`
 rejected the local candidate as having no usable trusted signature. Running the
 local extracted executable is a separate test and does not prove a browser-
-quarantined download will be accepted.
+quarantined download will be accepted. No quarantined browser download has been tested.
 
 Downloaded macOS binaries may be blocked. Do not advertise trusted/frictionless
 browser installation or recommend disabling Gatekeeper, removing quarantine

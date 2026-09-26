@@ -1,8 +1,8 @@
 # Install
 
-> bitshelf is a prototype, and installation is for development and testing with disposable data. No stable release has been published yet.
+> At preparation of this documentation snapshot, bitshelf is an unpublished release candidate: no stable release has been published yet. Source installation is available now. Check GitHub Releases and the tap for publication status; the packaged instructions below apply only to a published release.
 
-## From source (recommended)
+## From source (available now)
 
 Install the pinned Rust toolchain (rust-toolchain.toml; see [platforms](platforms.md)) with [rustup](https://rustup.rs), then in a bitshelf checkout:
 
@@ -24,7 +24,8 @@ file identifies the CLI release. See [matching releases](releases.md) and
 
 ## Release builds (when published)
 
-Release automation exists but hasn't shipped a stable release. Once one is published:
+Homebrew is the intended packaged installation path. The tap was not available
+at preparation of this snapshot; after publication, use the matching stable release:
 
 **Homebrew** (personal tap):
 
@@ -43,12 +44,12 @@ Targets:
 - macOS Intel (`x86_64-apple-darwin`)
 - Linux x86-64 (`x86_64-unknown-linux-gnu`, built/tested on Ubuntu 22.04; glibc 2.35 baseline)
 
-Prototype macOS archives are **not Developer ID signed or notarized**, so Gatekeeper may block browser downloads. Windows and Linux ARM are deferred.
+Release-candidate and first-release macOS archives are **not Developer ID signed or notarized**, so Gatekeeper may block browser downloads. Windows and Linux ARM are deferred.
 
 Exact tooling, runtime minimums, per-platform evidence gates and BUILD-INFO.json are described in [platform support](platforms.md).
 
 The first-release [signing/provenance policy](signing.md) explicitly defers Developer
 ID signing, notarization and independent attestations. A local ad-hoc Mach-O
 signature is not trusted publisher identity; Gatekeeper assessment rejected the
-local candidate. Source installation from a reviewed tag is the fallback. No
+local candidate. A quarantined browser download has not been tested. Source installation from a reviewed tag is the fallback. No
 Gatekeeper/quarantine bypass is recommended.

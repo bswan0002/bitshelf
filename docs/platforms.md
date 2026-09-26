@@ -13,8 +13,8 @@ CI actions are pinned to upstream commit SHAs, verified from their upstream tags
 | x86_64-unknown-linux-gnu | ubuntu-22.04 x86-64 runner | Ubuntu 22.04/glibc 2.35 or newer compatible x86-64 environment |
 
 Both macOS builds set MACOSX_DEPLOYMENT_TARGET=15.0. That binary load-command
-minimum is not a claim of testing every 15.x release. The first local runtime
-verification is macOS 15.7.4 ARM64. Intel and Linux claims become verified only
+minimum is not a claim of testing every 15.x release. The local ARM archive passed on macOS 15.7.4 ARM64; the Intel archive passed
+under Rosetta, not on native Intel hardware. Native Intel and Linux claims become verified only
 when their release matrix package tests pass; they are publication gates, not
 inferred from a successful ARM build. Linux packages must run on the 22.04 build
 runner; do not advertise older glibc compatibility. Windows, Linux ARM and older
