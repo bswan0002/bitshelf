@@ -6,7 +6,6 @@ use crate::{
 use anyhow::{Context, Result, bail, ensure};
 use std::{
     env, fs,
-    io::Write,
     path::{Path, PathBuf},
 };
 
@@ -101,22 +100,7 @@ pub fn run(args: &Completion) -> Result<()> {
         "{} changed during setup; rerun",
         path.display()
     );
-    match after {
-        Some(content) => {
-            if before.is_none() {
-                fs::create_dir_all(path.parent().context("missing parent directory")?)?;
-                fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&path)?
-                    .write_all(content.as_bytes())?;
-            } else {
-                // Preserve permissions and the inode of existing user configuration.
-                fs::write(&path, content)?;
-            }
-        }
-        None => fs::remove_file(&path)?,
-    }
+    apply(&path, before.as_deref(), after.as_deref())?;
     crate::output::line(format!(
         "Completion setup updated. {}",
         if action == "install" {
@@ -126,6 +110,21 @@ pub fn run(args: &Completion) -> Result<()> {
         }
     ))?;
     Ok(())
+}
+
+fn apply(path: &Path, before: Option<&str>, after: Option<&str>) -> Result<()> {
+    match after {
+        Some(content) => {
+            fs::create_dir_all(path.parent().context("missing parent directory")?)?;
+            crate::filesystem::publish(path, content.as_bytes(), before.map(str::as_bytes), None)
+        }
+        None => crate::filesystem::remove(
+            path,
+            before
+                .context("missing original shell configuration")?
+                .as_bytes(),
+        ),
+    }
 }
 
 fn directory(name: &str) -> Option<PathBuf> {
@@ -257,4 +256,21 @@ fn plan(shell: &str, before: Option<&str>, install: bool) -> Result<Option<Strin
         "\n"
     };
     Ok(Some(format!("{old}{separator}{}", block(shell))))
+}
+
+#[cfg(test)]
+mod commit_tests {
+    use super::*;
+    #[test]
+    fn failed_shell_write_and_stale_preview_preserve_unrelated_settings() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("rc");
+        fs::write(&path, "user settings").unwrap();
+        crate::filesystem::inject(&path, crate::filesystem::Stage::Write);
+        assert!(apply(&path, Some("user settings"), Some("replacement")).is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "user settings");
+        fs::write(&path, "external settings").unwrap();
+        assert!(apply(&path, Some("user settings"), Some("replacement")).is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "external settings");
+    }
 }

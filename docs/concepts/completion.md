@@ -43,3 +43,5 @@ bs completion --shell fish > ~/.config/fish/completions/bs.fish
 ```
 
 Elvish, Nushell, and PowerShell scripts are also generated. Activating them is left to those shells' own setup.
+
+Setup resolves the user-facing symlink and atomically replaces its target using a same-directory temporary file, preserving permission bits and the symlink itself. It checks the original content again before publication; stale previews fail. Existing inode identity and hardlinks are not preserved: another hardlink keeps the original content. File and parent-directory syncing use the same durability policy as bit writes. A pre-publication failure preserves unrelated shell settings.
