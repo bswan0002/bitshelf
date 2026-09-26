@@ -1,0 +1,9 @@
+# Identifier contract
+
+An ID is exactly `shelf/name`, without the final `.md` extension. Both components must be nonempty UTF-8, not start with a dot, not end with `.md`, and contain no slash, backslash or Unicode control character. Spaces, embedded dots, leading hyphens and Unicode are accepted; quote shell arguments and use `--` for leading-hyphen arguments. Hidden entries are intentionally ignored (including recovery drafts). Bit files have exactly a lowercase `.md` extension; nested directories are not bits.
+
+Discovered IDs pass the same checks as explicit arguments and resolve to their original files. Unsupported names, `.md` directories/special files and symlinks are diagnostics, never lossy fabricated IDs. Validation reports the real path and a null ID when no valid ID exists. JSON paths for unrepresentable OS strings are diagnostic display strings, not round-trippable addresses. `--paths --null` emits exact OS path bytes for supported discovered entries; it is not a raw filesystem enumerator for unsupported filenames. Use filesystem tools to repair unsupported names.
+
+Names retain case and Unicode representation; bs does not normalize either. Filesystem case sensitivity and Unicode normalization apply. No-clobber checks reject collisions, including case-only moves on case-insensitive filesystems. Case-only moves on case-sensitive filesystems are ordinary moves. Use an intermediate distinct name where needed. No promise is made that every accepted name is portable between filesystems or operating systems; avoid spaces, punctuation and case/normalization-only distinctions when portability matters.
+
+Tests cover spaces, dots, leading hyphens, Unicode, controls/newlines, backslashes, hidden names, extension rules, non-UTF-8 names, symlinks and `.md` directories. Completion, validation, list/search, show/edit/move/prune share this policy.
