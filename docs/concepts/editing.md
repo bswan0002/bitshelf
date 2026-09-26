@@ -1,5 +1,8 @@
 # Saving and editing
 
+> Timestamp behavior below is the approved target contract from ticket 01;
+> the prototype still uses lifecycle state and sync until ticket 09 lands.
+
 ## Saving exact content
 
 ```sh
@@ -28,11 +31,11 @@ bs edit notes/release-checklist --title 'New title' --tags release,checklist --j
 - `--file` (including `--file -`) and `--stdin` take **body-only** input, like `add`, and are mutually exclusive.
 - `--title` and `--tags` replace those fields. An empty tags argument clears tags.
 - Unrelated metadata and expiration are preserved; editing never extends retention.
-- `updated` advances only for a real content or metadata change. See [Timestamps and sync](timestamps.md).
+- Body/user-metadata changes automatically stamp `updated`, clamped to the original value if the clock moves backward. No-op edits preserve dates and missing dates. Explicit valid timestamp changes/removals in an editor draft are honored, including an explicit `updated` override. See [Timestamps](timestamps.md).
 - With no mutation flags, `bs edit ID` opens a temporary draft in your editor and waits. The original is replaced only after the editor exits successfully, the metadata validates, and a check confirms the original didn't change concurrently. A failed edit keeps the draft and reports its path.
 - JSON mode requires explicit mutation flags and never launches an editor.
 
-Editing files directly in any editor is also supported. Run `bs sync` afterward so timestamps are reconciled.
+Editing files directly in any editor is also supported. Markdown is authoritative: manage dates yourself for external edits. There is no watcher or sync in the target contract.
 
 ## Editors
 
@@ -57,7 +60,7 @@ bs open ui/menu notes/checklist   # multiple files
 bs open --pick                    # filtered multiselection
 ```
 
-The editor must support opening directories and multiple files for those forms. Opening a shelf doesn't expand it into every file. `bs open` never adds waiting flags, and doesn't reconcile timestamps; run `bs sync` after editing.
+The editor must support opening directories and multiple files for those forms. Opening a shelf doesn't expand it into every file. `bs open` never adds waiting flags and never manages timestamps; dates for subsequent external edits are the user's responsibility.
 
 ### Waiting for GUI editors
 
@@ -70,6 +73,11 @@ This is a list of known commands, not general GUI detection. Unknown editors and
 `bs add --interactive` prompts for a shelf, bit name, and tags, then opens a draft. `bs add notes/draft --interactive` skips shelf and name selection. It doesn't ask for a title; pass `--title` or add one in the draft if the shelf requires it. Cancelling during the prompts creates nothing.
 
 JSON mode and piped or noninteractive invocations never prompt.
+
+Both creation timestamps are generated together at finalization, not when the
+editor opens. Interactive add overwrites draft `created`/`updated` values or
+removals; editor-mode edit instead honors explicit valid date edits. Intermediate
+draft saves never update source dates.
 
 ## Drafts
 

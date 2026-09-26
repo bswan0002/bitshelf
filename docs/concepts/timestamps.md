@@ -1,37 +1,116 @@
-# Timestamps and sync
+# Timestamps
 
-Every bit has `created` and `updated` timestamps that `bs` maintains for you, so sorting by recency stays trustworthy even when files are edited outside `bs`.
+> Approved target contract (ticket 01). The prototype still uses lifecycle state
+> and `bs sync`; implementation follows in ticket 09. The rules below describe
+> the replacement, not the current executable.
 
-## The short version
+## Authority and scope
 
-- **Never set `created` or `updated` yourself.** There are no flags for them, and manual changes to tracked values are restored.
-- Changes made through `bs add`, `bs edit`, and `bs move` are timestamped automatically.
-- After editing files directly (in your editor, with `bs open`, or with a script), run `bs sync`.
-- When you start using existing Markdown files, run `bs sync` **before** editing them externally.
+Markdown is authoritative. There is no persistent timestamp history, baseline,
+watcher, or reconciliation. `bs` compares only the original and proposed content
+within one command. Direct edits, including edits after `bs open`, leave timestamp
+management to the user. Read commands and validation never rewrite dates.
 
-```sh
-bs sync --dry-run      # preview reconciliation
-bs sync                # reconcile all shelves
-bs sync notes --json   # reconcile one shelf
-```
+`created` and `updated`, when present, must be RFC 3339 strings with an explicit
+offset. Missing fields are permitted unless shelf requirements demand them; null,
+empty strings, date-only strings, and non-string values are invalid. Valid imported
+values retain their string representation unless the command replaces them.
+Generated values use UTC (`Z`) with sufficient fractional precision to avoid
+rounding below a preserved timestamp. No filesystem time supplies either date.
+There is no requirement that `created <= updated`: imported or explicitly edited
+dates may express user-managed history.
 
-## How it works
+## Command rules
 
-**Reserved fields.** `created` is fixed once tracking begins. `updated` advances automatically when the body or user metadata really changes. A no-op edit of a tracked, reconciled bit leaves timestamps unchanged. First-time tracking can fill in missing dates, and an edit can pick up a pending external change. Frontmatter key order, comments, and changes to reserved timestamps alone aren't content changes. Generated dates use UTC; valid imported dates keep their representation. Rewriting timestamps may normalize YAML formatting and comments, but the Markdown body is preserved exactly.
+| Operation | `created` | `updated` |
+| --- | --- | --- |
+| `add`, including interactive add | Set to successful-finalization time | Set to the same instant as `created` |
+| `edit` with a body/user-metadata change | Preserve original value or absence unless explicitly edited in the draft | Automatically stamp unless explicitly edited in the draft |
+| No-op `edit` | Preserve | Preserve |
+| Plain `move` (ID, shelf, or path changes only) | Preserve, including absence | Preserve, including absence |
+| `move` that changes body/user metadata | Preserve, including absence | Automatically stamp |
+| `open`, external editing, discovery, read commands, validation | No automatic changes | No automatic changes |
 
-**Change detection.** `bs sync` compares SHA-256 hashes of each bit's body and non-reserved metadata against hidden bookkeeping in `<store>/.bitshelf/state.json`. `updated` records the **time the change was detected**, not a file modification time. There is no background watcher, and `list`, `show`, `search`, and `validate` never reconcile.
+For add, sample one clock instant after editor completion and validation, near
+publication, not when the draft is opened. Add owns both dates: draft values or
+removals are overwritten with that instant, not imported as historical dates.
+Malformed frontmatter still fails. Retention policy is separate; this contract
+neither extends expiration nor changes how expiration is chosen.
 
-**Existing and imported files.** The first sync establishes a baseline. Valid existing timestamps are kept, and missing ones are set to the time the file is first tracked. Historical dates are never invented, and `created` is never taken from the file's birth time. Edits made before the baseline can't be detected, which is why you should sync imported files before editing them externally. A previously unused identifier is baselined when discovered.
+For automatic updates, use `max(finalization time, original updated)` if an
+original `updated` exists, otherwise finalization time. If the prior instant wins,
+preserve its representation. A changed bit need not get a strictly greater date:
+backward-moving or equal clocks must not fabricate a future increment or prevent
+the save. A missing `created` is never invented by edit or move. Missing dates on
+no-op edits and plain moves remain missing.
 
-**Identity.** State is keyed by identifier, not inode, so editors that save by replacing the file keep their history. `bs add` always starts fresh history for its new bit. Moves carry history to the new ID. Add, edit, move, sync, and prune discard records for paths observed missing, including deleted shelves, and pruning also discards records for removed bits. Run sync after deleting or renaming files, before reusing their old identifiers. A file deleted and replaced at the same identifier between commands is indistinguishable from an edit and keeps that identifier's history.
+## What counts as a change
 
-**Losing state.** Losing `state.json` loses change history, not notes or frontmatter dates; the next sync re-baselines. Include it in backups if you want to keep change detection, and don't edit it by hand.
+Compare the exact UTF-8 body bytes and the supported parsed user-metadata values,
+excluding only top-level `created` and `updated`. `expires` and unknown user fields
+participate. Mapping order, comments, quoting style, and equivalent YAML syntax
+do not constitute a semantic metadata change. Sequence order, field absence vs.
+null, value types, body whitespace, line endings, and final newlines do matter.
+Nested mapping order is likewise irrelevant. Ticket 02 defines the supported
+value model; comparison must not use lossy JSON conversion.
 
-## What sync does and doesn't do
+Compare against the original read by this command, never an older version.
+An external edit that predates the command is already authoritative and is not a
+new change to detect. A move's new identifier is not user metadata.
 
-- It reconciles readable bits even when shelf requirements (title, tags) are missing or user metadata is invalid. Use `bs validate` for those; sync never fills them in.
-- Malformed YAML, invalid untracked timestamps, and read/write failures produce per-bit errors. Other bits are still processed, and sync exits nonzero if any bit failed.
-- `--dry-run` writes neither bits nor state.
-- It preserves expiration and unknown metadata, never extends retention, never deletes notes, and never prunes.
+A semantic no-op leaves dates unchanged. An identical proposed file requires no
+rewrite. Explicit formatting/comment-only draft edits may be published without
+advancing dates; syntax preservation on other rewrites is governed by the
+frontmatter contract.
 
-For locking and interrupted writes, see [Safety and recovery](safety.md).
+## Explicit editor-draft dates
+
+For editor-mode edit, compare each draft date field with the original field by
+presence and parsed string value. A different valid string (even for the same
+instant) or removal is an explicit edit. Quoting-only changes to the same string
+are not. An unchanged final draft cannot reveal intermediate editor actions.
+
+- Honor explicit valid `created` changes or removal.
+- Honor explicit valid `updated` changes or removal, even alongside content
+  changes. This overrides automatic stamping and the clock clamp for that field.
+- Changing only `created` does not trigger an automatic `updated` change.
+- Date-only edits are saved but are not body/user-metadata changes.
+- Removals must still satisfy shelf-required fields.
+
+Invalid existing dates are not silently repaired by automatic stamping. An edit
+draft can explicitly replace an invalid date with a valid value or remove it;
+otherwise edit/move fails validation, including on no-ops and plain moves. A
+body-only or unrelated metadata mutation cannot hide an invalid original date.
+Malformed YAML must be repaired outside the command if a draft cannot be parsed.
+No new timestamp mutation flags are introduced here; the shared metadata contract
+must preserve these automatic-field rules.
+
+## Finalization and failure
+
+Editor-mode edit waits for successful editor exit, compares the original with the
+final draft, validates, and checks that the source has not changed concurrently.
+Only final publication stamps the bit; intermediate editor saves never stamp the
+source. Nonzero editor exit, invalid drafts, destination collisions, concurrency
+conflicts, and pre-publication write failures leave source bytes and dates alone.
+Failed editor drafts remain available for recovery.
+
+A publication followed by a durability or cleanup failure may already have saved
+the new dates. Report that outcome accurately rather than claiming rollback or
+retrying blindly. Move partial-publication outcomes follow the filesystem commit
+contract; timestamps do not imply transactionality. No separate timestamp-state
+commit exists.
+
+## Removing prototype history
+
+Remove `bs sync` rather than retain an alias or no-op compatibility command.
+Stop reading, writing, validating, or repairing `.bitshelf/state.json`. Ignore
+existing prototype history, even if corrupt; leave it on disk for optional manual
+removal. Do not migrate it or restore dates from it. Identifier reuse has no history.
+
+Writer locking remains independent of timestamp authority. The lock implementation
+must not depend on the prototype `state.lock` sentinel; obsolete state/lock files
+must not block commands. Do not recursively delete `.bitshelf`, which may contain
+independent locking or other files. Ticket 10 defines the replacement locking.
+
+See [Saving and editing](editing.md) and the
+[timestamp fixture specification](timestamp-fixtures.md).
