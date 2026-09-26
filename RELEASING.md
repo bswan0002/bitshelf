@@ -9,7 +9,7 @@ Maintainer procedure for publishing bitshelf. User-facing installation lives in 
 
 ## Each release
 
-1. Update `Cargo.toml`, `Cargo.lock`, the Usage version attribute in `src/cli/mod.rs`, `CHANGELOG.md`, and the skill's compatibility statement if necessary. Use a stable `vMAJOR.MINOR.PATCH` tag for Homebrew publishing.
+1. Update `Cargo.toml`, `Cargo.lock`, `CHANGELOG.md`, and the skill's compatibility statement if necessary. Use a stable `vMAJOR.MINOR.PATCH` tag for Homebrew publishing.
 2. Run `cargo fmt --check`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --locked`, and the docs build. Manually test Demand terminal cancellation, draft failure recovery, and shell activation on release platforms.
 3. Build the executable and regenerate reference/man/completions using `bash scripts/generate-docs.sh` with Usage CLI **6.11.1**. Commit generated `docs/reference` pages, not `dist`.
 4. Push an annotated `v*` tag matching the package version. This is the explicit publication trigger. The release workflow creates a draft, tests/builds all targets, generates docs/completions, uploads archives and checksums, then publishes only after all builds succeed. It does not push tags for you.
@@ -26,3 +26,5 @@ The workflow does not perform signing, notarization, Packslip attestations, or c
 ## macOS signing decision
 
 Prototype archives are unsigned and unnotarized. Source installation is the recommended prototype route; do not advertise frictionless downloaded-app installation. Signing/notarization must be configured before changing this claim.
+
+The CLI version derives from Cargo via Usage. `python3 scripts/release.py validate --tag v0.1.0 --binary target/release/bs --notes-out release-notes.md` checks package/tag/executable consistency and extracts exactly the matching nonempty changelog section. This validation never publishes. Unit tests: `python3 -B scripts/test_release.py`.

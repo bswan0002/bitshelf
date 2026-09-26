@@ -1,26 +1,14 @@
 # Changelog
 
-## 0.1.0 — Unreleased prototype
+## 0.1.0 — First public release candidate (not yet published)
 
-- Explicit global helper aliases via `{ exec = [...] }`, with literal argv, configuration/executable environment context, and forwarded help/JSON flags; shelf helpers remain opt-in rather than automatic hooks.
-
-- Ranked, index-free search with cross-field AND terms, exact phrases, `!` exclusions, separator-insensitive ID/tag matching, `--any`, exact `--tag` filtering, `--sort id`, and JSON match fields/scores; updated retrieval docs and agent skill.
-
-- Validated, no-clobber `bs move` with renaming, string metadata assignments, dry runs, and timestamp-history transfer.
-- Configured argv aliases with safe ID templates; archive shelf recipe without archive-specific storage or hooks.
-- Shelf `discoverable = false` excludes default list/search and open picker results; explicit access, `--all`, and maintenance remain available.
-
-- Rust `bs` CLI with Usage declarations, generated help/reference/man page, and self-contained dynamic completion.
-- TOML/XDG configuration, discoverable shelves, verbatim Markdown ingestion, frontmatter validation, plain-text search, and JSON results.
-- Configured/environment editors, Demand setup, draft authoring, and filtered multi-open selection.
-- Init honors VISUAL/EDITOR without prompting; recognized GUI editors automatically wait for draft editing only.
-- Automatic reserved `created`/`updated` timestamps, editor or body-input `bs edit`, hash-based `bs sync` for external edits, and chronological list sorting.
-- Patched Demand's duplicate completed-prompt rendering, covered by real-terminal regression tests.
-- Self-contained shelves with `bits/` content, local `bs.toml` settings, optional `SHELF.md`, and readable `shelf/bit-name` identifiers.
-- ID-first creation (`bs add shelf/bit-name`) with optional title metadata; no generated slugs.
-- ID-only list/search defaults, `--long`, `--paths`, and `--null` output, and ID-aware search.
-- Body-only retrieval (`show --body`), conventional stdin input (`add/edit --file -`), and quiet broken-pipe handling.
-- Shelf guidance context and portable bitshelf agent skill, including a recipe for ordinary shelf-local helpers referenced from guidance.
-- Explicit opt-in expiration with safe dry-run cleanup.
-- Temporary-store contract tests, VitePress docs, CI, and release/Homebrew automation scaffolding.
-- Documentation reorganized around motivation, the core loop, outcome-oriented recipes (design docs, handoffs, reusable code, archive, expiring shelves), and an agents guide, with the former user guide split into reference pages; maintainer release steps moved to `RELEASING.md`.
+- Store notes, snippets, prompts and handoffs as ordinary UTF-8 Markdown in self-contained shelves, with optional titles, tags, shelf-local requirements and guidance.
+- Search IDs, titles, tags and bodies with ranked AND/OR terms, phrases, exclusions and deterministic ordering. List IDs, exact paths or JSON; retrieve exact bodies with `show --body`.
+- Save through stdin/files or waiting editor drafts. Markdown is authoritative: add owns creation dates, edits compare only current source and candidate, plain moves preserve dates, and external edits leave date management to the author.
+- Add, edit and move share literal `--set`, typed `--set-json`, `--unset`, title and tag replacement. Destination tag rules are validated before a move without temporarily rewriting the source.
+- Strict supported YAML values survive JSON and mutations without silent conversion loss. Unsupported keys, duplicates, tags, merges, non-finite numbers and overflowing integers fail clearly.
+- Healthy shelves remain accessible during partial discovery. List/search/shelf-list JSON is `{results, errors, complete}`; incomplete scans exit 1. Helpers own their output contract and receive literal argv/configuration context.
+- Guarded no-clobber creation, atomic replacement, OS writer locks with bounded waiting, recoverable drafts, destination-first moves, and conservative explicit-expiration pruning with per-item partial outcomes.
+- Shell completion setup updates resolved startup files atomically. The package contains the executable, man page, bash/zsh/fish completions, matching agent skill and third-party notices.
+- Breaking from the unpublished prototype: remove `sync` and persistent timestamp history; ignore old state files without migration or deletion; change collection JSON to completeness envelopes; reject unsupported discovered names. Back up store/configuration before trying a different minor release.
+- Scope and limits: local trusted macOS/Linux filesystems; best-effort external-editor conflict checks, no distributed lock or multi-file transaction, no attachment/link rewriting. Frontmatter presentation can normalize; exact UTF-8 bodies and supported values are preserved. macOS downloads are unsigned and unnotarized; signing and independent attestations are deferred. Checksums are integrity checks, not independent provenance.

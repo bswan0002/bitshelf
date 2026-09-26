@@ -19,13 +19,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python3 - <<'PY'
-          import os, tomllib
-          with open('Cargo.toml', 'rb') as f:
-              version = tomllib.load(f)['package']['version']
-          assert os.environ['GITHUB_REF_NAME'] == 'v' + version, 'Tag must match Cargo.toml'
-          PY
-          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes 'Prototype release. macOS archives are unsigned and unnotarized; see the installation guide.'
+          python3 scripts/release.py validate --tag "$GITHUB_REF_NAME" --notes-out release-notes.md
+          gh release view "$GITHUB_REF_NAME" || gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+
   build:
     needs: draft
     strategy:

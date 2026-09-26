@@ -3,7 +3,7 @@ use usage::{Args, Cli, Subcommands};
 
 /// A local Markdown-first store for reusable bits
 #[derive(Cli)]
-#[usage(bin = "bs", version = "0.1.0", completion)]
+#[usage(bin = "bs", version, completion)]
 pub struct Bs {
     /// Override the XDG configuration file
     #[usage(long, global)]
