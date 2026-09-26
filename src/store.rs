@@ -5,11 +5,37 @@ use crate::{
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::{
-    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
 };
 
+#[derive(Serialize)]
+pub struct DiscoveryError {
+    pub path: String,
+    pub error: String,
+}
+#[derive(Serialize)]
+pub struct Collection<T> {
+    pub results: Vec<T>,
+    pub errors: Vec<DiscoveryError>,
+    pub complete: bool,
+}
+impl<T> Collection<T> {
+    fn new() -> Self {
+        Self {
+            results: vec![],
+            errors: vec![],
+            complete: true,
+        }
+    }
+    fn error(&mut self, path: &Path, error: impl std::fmt::Display) {
+        self.complete = false;
+        self.errors.push(DiscoveryError {
+            path: path.to_string_lossy().into_owned(),
+            error: error.to_string(),
+        });
+    }
+}
 #[derive(Serialize)]
 pub struct Shelf {
     pub discoverable: bool,
@@ -103,47 +129,65 @@ impl Store {
         self.safe(&path)?;
         ShelfConfig::load(&path)
     }
-    pub fn shelves(&self) -> Result<Vec<Shelf>> {
+    pub fn shelves(&self) -> Result<Collection<Shelf>> {
         ensure!(
             self.config.store.is_dir(),
             "store does not exist: {}; run bs init",
             self.config.store.display()
         );
-        let mut names: BTreeSet<String> = BTreeSet::new();
-        for e in fs::read_dir(&self.config.store)? {
-            let e = e?;
-            let n = e.file_name().to_string_lossy().into_owned();
-            if !n.starts_with('.') && e.file_type()?.is_symlink() {
-                eprintln!("warning: refusing symlink: {}", e.path().display());
-            }
-            if !n.starts_with('.') && e.file_type()?.is_dir() {
-                let path = e.path();
-                self.safe(&path.join("bits"))?;
-                self.safe(&path.join("bs.toml"))?;
-                if path.join("bits").try_exists()? || path.join("bs.toml").try_exists()? {
-                    names.insert(n);
+        let mut out = Collection::new();
+        for entry in fs::read_dir(&self.config.store)? {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(e) => {
+                    out.error(&self.config.store, e);
+                    continue;
                 }
+            };
+            let path = entry.path();
+            let filename = entry.file_name();
+            if filename.as_encoded_bytes().starts_with(b".") {
+                continue;
             }
-        }
-        names
-            .into_iter()
-            .map(|name| {
-                let path = self.config.store.join(&name);
+            let result = (|| -> Result<Option<Shelf>> {
+                let kind = entry.file_type()?;
                 self.safe(&path)?;
-                let cfg = self.settings(&name)?;
-                Ok(Shelf {
+                if !kind.is_dir() {
+                    return Ok(None);
+                }
+                if !entry_exists(&path.join("bits"))? && !entry_exists(&path.join("bs.toml"))? {
+                    return Ok(None);
+                }
+                let name = filename
+                    .to_str()
+                    .context("unsupported non-UTF-8 shelf name")?;
+                config::name(name)?;
+                for field in ["bits", "bs.toml", "SHELF.md"] {
+                    self.safe(&path.join(field))?;
+                }
+                let cfg = self.settings(name)?;
+                let missing = !path.join("bits").is_dir();
+                Ok(Some(Shelf {
+                    name: name.into(),
+                    path: path.clone(),
                     discoverable: cfg.discoverable,
                     configured: path.join("bs.toml").is_file(),
-                    missing: !path.join("bits").is_dir(),
+                    missing,
                     guidance_available: entry_exists(&path.join("SHELF.md"))?,
-                    name,
-                    path,
                     description: cfg.description,
                     required: cfg.required,
                     retention: cfg.retention,
-                })
-            })
-            .collect()
+                }))
+            })();
+            match result {
+                Ok(Some(s)) => out.results.push(s),
+                Ok(None) => (),
+                Err(e) => out.error(&path, format!("{e:#}")),
+            }
+        }
+        out.results.sort_by(|a, b| a.name.cmp(&b.name));
+        out.errors.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(out)
     }
     pub fn bit_path(&self, id: &str) -> Result<PathBuf> {
         let id = crate::identity::BitId::parse(id)?;
@@ -151,86 +195,72 @@ impl Store {
         self.safe(&p)?;
         Ok(p)
     }
-    pub fn discover(&self, shelf: Option<&str>, all: bool) -> Result<Vec<Bit>> {
-        self.read_bits(shelf, true, !all)
+    pub fn discover(&self, shelf: Option<&str>, all: bool) -> Result<Collection<Bit>> {
+        self.read_bits(shelf, !all)
     }
-    pub fn bits(&self, shelf: Option<&str>) -> Result<Vec<Bit>> {
-        self.read_bits(shelf, true, false)
+    pub fn bits(&self, shelf: Option<&str>) -> Result<Collection<Bit>> {
+        self.read_bits(shelf, false)
     }
-    fn read_bits(
-        &self,
-        shelf: Option<&str>,
-        report_metadata_errors: bool,
-        discovery: bool,
-    ) -> Result<Vec<Bit>> {
-        let shelves = if let Some(s) = shelf {
-            self.shelf_path(s, true)?;
+    fn read_bits(&self, shelf: Option<&str>, discovery: bool) -> Result<Collection<Bit>> {
+        let mut out = Collection::new();
+        let names = if let Some(s) = shelf {
+            self.bits_path(s)?;
+            self.settings(s)?;
             vec![s.to_owned()]
         } else {
-            self.shelves()?
+            let shelves = self.shelves()?;
+            out.errors = shelves.errors;
+            out.complete = shelves.complete;
+            shelves
+                .results
                 .into_iter()
                 .filter(|s| !discovery || s.discoverable)
-                .filter_map(|s| {
-                    if s.missing {
-                        eprintln!(
-                            "warning: missing bits directory for shelf {}; use bs shelf add {}",
-                            s.name, s.name
-                        );
-                        None
-                    } else {
-                        Some(s.name)
-                    }
-                })
+                .map(|s| s.name)
                 .collect()
         };
-        let mut bits = vec![];
-        for s in shelves {
-            let cfg = self.settings(&s)?;
-            for e in fs::read_dir(self.bits_path(&s)?)? {
-                let e = e?;
-                let p = e.path();
-                if p.extension().is_none_or(|x| x != "md")
-                    || e.file_name().to_string_lossy().starts_with('.')
-                {
-                    continue;
-                }
-                if let Err(err) = self.safe(&p) {
-                    eprintln!("warning: {err}");
-                    continue;
-                }
-                if !e.file_type()?.is_file() {
-                    continue;
-                }
-                let id = crate::identity::discovered(&s, &p)?;
-                match fs::read_to_string(&p) {
-                    Ok(raw) => {
-                        let bit = bit::inspect(id, p, &raw, &cfg);
-                        if report_metadata_errors {
-                            for err in &bit.errors {
-                                eprintln!("warning: {}: {err}", bit.id);
-                            }
+        for name in names {
+            let scope = (|| -> Result<()> {
+                let cfg = self.settings(&name)?;
+                for entry in fs::read_dir(self.bits_path(&name)?)? {
+                    let entry = match entry {
+                        Ok(e) => e,
+                        Err(e) => {
+                            out.error(&self.config.store.join(&name), e);
+                            continue;
                         }
-                        bits.push(bit);
+                    };
+                    let path = entry.path();
+                    if entry.file_name().as_encoded_bytes().starts_with(b".")
+                        || path.extension().is_none_or(|x| x != "md")
+                    {
+                        continue;
                     }
-                    Err(err) => {
-                        eprintln!("warning: {}: {err}", p.display());
-                        bits.push(Bit {
-                            id,
-                            path: p,
-                            title: None,
-                            tags: vec![],
-                            metadata: serde_json::Value::Null,
-                            errors: vec![err.to_string()],
-                            body: String::new(),
-                            raw: String::new(),
-                            expires: None,
-                        });
+                    let result = (|| -> Result<Bit> {
+                        self.safe(&path)?;
+                        ensure!(entry.file_type()?.is_file(), "not a regular .md file");
+                        let id = crate::identity::discovered(&name, &path)?;
+                        let raw = fs::read_to_string(&path)?;
+                        Ok(bit::inspect(id, path.clone(), &raw, &cfg))
+                    })();
+                    match result {
+                        Ok(bit) => {
+                            for error in &bit.errors {
+                                out.error(&path, error);
+                            }
+                            out.results.push(bit);
+                        }
+                        Err(e) => out.error(&path, format!("{e:#}")),
                     }
                 }
+                Ok(())
+            })();
+            if let Err(error) = scope {
+                out.error(&self.config.store.join(&name), format!("{error:#}"));
             }
         }
-        bits.sort_by(|a, b| a.id.cmp(&b.id));
-        Ok(bits)
+        out.results.sort_by(|a, b| a.id.cmp(&b.id));
+        out.errors.sort_by(|a, b| a.path.cmp(&b.path));
+        Ok(out)
     }
     /// Unlike discovery, validation accounts for disallowed links instead of
     /// silently excluding them. Inspect entries themselves, never their targets.
@@ -298,7 +328,15 @@ impl Store {
                     continue;
                 }
             };
-            let mut entries = fs::read_dir(bits)?.collect::<std::io::Result<Vec<_>>>()?;
+            let mut entries = match fs::read_dir(&bits)
+                .and_then(|entries| entries.collect::<std::io::Result<Vec<_>>>())
+            {
+                Ok(entries) => entries,
+                Err(error) => {
+                    results.push(Validation::failure(bits, error));
+                    continue;
+                }
+            };
             entries.sort_by_key(|e| e.file_name());
             for entry in entries {
                 let path = entry.path();

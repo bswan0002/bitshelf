@@ -81,9 +81,13 @@ fn run_with(
     };
     let now = Utc::now();
     let bits = store.bits(c.shelf.as_deref())?;
-    let mut results = vec![];
-    let mut failed = false;
-    for b in bits {
+    let mut failed = !bits.complete;
+    let mut results: Vec<_> = bits
+        .errors
+        .into_iter()
+        .map(|e| json!({"id":null,"path":e.path,"status":"skipped","error":e.error}))
+        .collect();
+    for b in bits.results {
         let operation = (|| -> anyhow::Result<Option<&str>> {
             let shelf = b.id.split('/').next().unwrap();
             match decide(&b, &store.settings(shelf)?, now) {

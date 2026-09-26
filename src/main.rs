@@ -125,6 +125,7 @@ fn run(args: Bs) -> Result<()> {
             ShelfCommands::List(_) => {
                 let shelves = store.shelves()?;
                 let human = shelves
+                    .results
                     .iter()
                     .map(|s| {
                         format!(
@@ -141,7 +142,8 @@ fn run(args: Bs) -> Result<()> {
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
-                emit(&shelves, json_output, human)
+                emit(&shelves, json_output, human)?;
+                discovery_status(&shelves.errors)
             }
             ShelfCommands::Add(mut c) => {
                 if c.name.is_none() {
@@ -204,6 +206,7 @@ fn run(args: Bs) -> Result<()> {
                         "Choose shelf",
                         &store
                             .shelves()?
+                            .results
                             .into_iter()
                             .filter(|s| !s.missing)
                             .map(|s| s.name)
@@ -325,8 +328,9 @@ fn run(args: Bs) -> Result<()> {
         }
         Commands::List(c) => {
             output::check_listing(json_output, c.long, c.paths, c.null)?;
-            let mut bits: Vec<_> = store
-                .discover(c.shelf.as_deref(), c.all)?
+            let discovered = store.discover(c.shelf.as_deref(), c.all)?;
+            let mut bits: Vec<_> = discovered
+                .results
                 .into_iter()
                 .filter(|b| c.tag.as_ref().is_none_or(|t| b.tags.contains(t)))
                 .collect();
@@ -349,13 +353,23 @@ fn run(args: Bs) -> Result<()> {
             } else if c.reverse {
                 bits.reverse();
             }
-            output::listing(&bits, json_output, c.long, c.paths, c.null)
+            if json_output {
+                emit(
+                    &json!({"results":bits,"errors":discovered.errors,"complete":discovered.complete}),
+                    true,
+                    "",
+                )?;
+            } else {
+                output::listing(&bits, false, c.long, c.paths, c.null)?;
+            }
+            discovery_status(&discovered.errors)
         }
         Commands::Search(c) => {
             output::check_listing(json_output, c.long, c.paths, c.null)?;
             let query = search::Query::parse(&c.query, c.any)?;
-            let mut results: Vec<_> = store
-                .discover(c.shelf.as_deref(), c.all)?
+            let discovered = store.discover(c.shelf.as_deref(), c.all)?;
+            let mut results: Vec<_> = discovered
+                .results
                 .into_iter()
                 .filter(|b| c.tag.as_ref().is_none_or(|t| b.tags.contains(t)))
                 .filter_map(|bit| query.matches(&bit).map(|matched| (bit, matched)))
@@ -378,11 +392,16 @@ fn run(args: Bs) -> Result<()> {
                     .iter()
                     .map(|(bit, matches)| SearchResult { bit, matches })
                     .collect();
-                emit(&values, true, "")
+                emit(
+                    &json!({"results":values,"errors":discovered.errors,"complete":discovered.complete}),
+                    true,
+                    "",
+                )?;
             } else {
                 let bits: Vec<_> = results.into_iter().map(|(bit, _)| bit).collect();
-                output::listing(&bits, false, c.long, c.paths, c.null)
+                output::listing(&bits, false, c.long, c.paths, c.null)?;
             }
+            discovery_status(&discovered.errors)
         }
         Commands::Show(c) => {
             let path = store.bit_path(&c.id)?;
@@ -413,6 +432,7 @@ fn run(args: Bs) -> Result<()> {
                 c.target = interactive::pick(
                     &store
                         .discover(None, false)?
+                        .results
                         .into_iter()
                         .map(|b| b.id)
                         .collect::<Vec<_>>(),
@@ -463,7 +483,10 @@ fn run(args: Bs) -> Result<()> {
                     format!(
                         "{}\t{}",
                         r["status"].as_str().unwrap(),
-                        r["id"].as_str().unwrap()
+                        r["id"]
+                            .as_str()
+                            .or_else(|| r["path"].as_str())
+                            .unwrap_or("unknown")
                     )
                 })
                 .collect::<Vec<_>>()
@@ -477,4 +500,15 @@ fn run(args: Bs) -> Result<()> {
         }
         Commands::Init(_) | Commands::Completion(_) => unreachable!(),
     }
+}
+
+fn discovery_status(errors: &[store::DiscoveryError]) -> Result<()> {
+    for error in errors {
+        eprintln!("warning: {}: {}", error.path, error.error);
+    }
+    ensure!(
+        errors.is_empty(),
+        "discovery incomplete; see reported errors"
+    );
+    Ok(())
 }

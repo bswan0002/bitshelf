@@ -52,7 +52,13 @@ impl Fixture {
         o
     }
     fn json(&self, args: &[&str]) -> Value {
-        serde_json::from_slice(&self.ok(args).stdout).unwrap()
+        let value: Value = serde_json::from_slice(&self.ok(args).stdout).unwrap();
+        if value.get("complete").is_some() {
+            assert_eq!(value["complete"], true);
+            value["results"].clone()
+        } else {
+            value
+        }
     }
     fn write(&self, id: &str, text: &str) {
         fs::write(self.bit_path(id), text).unwrap();
@@ -340,7 +346,11 @@ fn malformed_metadata_is_readable_and_unknown_fields_survive() {
     f.write("notes/plain", "handwritten");
     f.write("notes/unknown", "---\ncustom: {nested: yes}\n---\nbody");
     let before = fs::read(f.root.join("notes/bits/unknown.md")).unwrap();
-    let list = f.json(&["list", "--json"]);
+    let out = f.run(&["list", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let envelope: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(envelope["complete"], false);
+    let list = &envelope["results"];
     assert_eq!(list.as_array().unwrap().len(), 3);
     assert!(!list[0]["errors"].as_array().unwrap().is_empty());
     assert_eq!(
@@ -348,7 +358,7 @@ fn malformed_metadata_is_readable_and_unknown_fields_survive() {
         b"---\ntitle: [\n---\nfind me"
     );
     assert_eq!(
-        f.json(&["search", "find me", "--json"])
+        serde_json::from_slice::<Value>(&f.run(&["search", "find me", "--json"]).stdout).unwrap()["results"]
             .as_array()
             .unwrap()
             .len(),
@@ -435,7 +445,9 @@ fn expiration_is_opt_in_explicit_and_safe() {
         assert!(f.bit_path(p).exists());
     }
     f.ok(&["add", "tmp/new", "--title", "New"]);
-    let rows = f.json(&["list", "tmp", "--json"]);
+    let envelope: Value =
+        serde_json::from_slice(&f.run(&["list", "tmp", "--json"]).stdout).unwrap();
+    let rows = &envelope["results"];
     let new = rows
         .as_array()
         .unwrap()
@@ -504,7 +516,7 @@ fn refuses_symlink_writes_reads_and_pruning() {
     )
     .unwrap();
     assert!(!f.run(&["show", "tmp/victim"]).status.success());
-    f.ok(&["prune", "tmp"]);
+    assert_eq!(f.run(&["prune", "tmp"]).status.code(), Some(1));
     assert!(external.path().join("victim.md").exists());
     symlink(
         external.path().join("victim.md"),
@@ -1345,8 +1357,7 @@ fn list_and_search_output_modes() {
             assert_eq!(run(&flags), expected.as_bytes());
         }
         assert_eq!(
-            serde_json::from_slice::<Value>(&run(&["--json"]))
-                .unwrap()
+            serde_json::from_slice::<Value>(&run(&["--json"])).unwrap()["results"]
                 .as_array()
                 .unwrap()
                 .len(),
@@ -1791,4 +1802,42 @@ fn move_respects_lock_corrupt_state_and_destination_tag_rules() {
     fs::write(f.root.join(".bitshelf/state.json"), "corrupt").unwrap();
     f.ok(&["move", "notes/a", "notes/b"]);
     assert_eq!(fs::read(f.bit_path("notes/b")).unwrap(), before);
+}
+
+#[test]
+fn partial_discovery_keeps_healthy_shelves_and_explicit_failures_are_clear() {
+    let f = Fixture::new();
+    f.ok(&["add", "notes/healthy"]);
+    for name in ["bad", "missing"] {
+        f.ok(&["shelf", "add", name]);
+    }
+    fs::write(
+        f.root.join("bad/bs.toml"),
+        "discoverable = false\nunknown = true",
+    )
+    .unwrap();
+    fs::remove_dir(f.root.join("missing/bits")).unwrap();
+    for args in [vec!["list", "--json"], vec!["search", "healthy", "--json"]] {
+        let out = f.run(&args);
+        assert_eq!(out.status.code(), Some(1));
+        let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+        assert_eq!(value["complete"], false);
+        assert_eq!(value["results"][0]["id"], "notes/healthy");
+        assert_eq!(value["errors"].as_array().unwrap().len(), 2);
+    }
+    f.ok(&["list", "notes", "--json"]);
+    let out = f.run(&["list", "bad", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(out.stdout.is_empty());
+    assert_eq!(f.run(&["validate", "--json"]).status.code(), Some(1));
+    let out = f.run(&["prune", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(
+        serde_json::from_slice::<Value>(&out.stdout)
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
 }

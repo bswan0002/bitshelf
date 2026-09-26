@@ -233,7 +233,7 @@ fn candidates(
             crate::config::Config::load(&crate::config::config_path(override_path.as_deref())?)?;
         let store = crate::store::Store { config };
         let mut result = vec![];
-        for s in store.shelves()?.into_iter().filter(|s| !s.missing) {
+        for s in store.shelves()?.results.into_iter().filter(|s| !s.missing) {
             if shelves {
                 result.push(usage::complete::Candidate::new(s.name.clone()));
             }
