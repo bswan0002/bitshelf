@@ -117,6 +117,9 @@ fn run(args: Bs) -> Result<()> {
             ),
         );
     }
+    if let Commands::Aliases(c) = &args.command {
+        return aliases::inspect(&aliases::load_config(&path)?, &path, c, json_output);
+    }
     let store = Store {
         config: Config::load(&path)?,
     };
@@ -337,11 +340,7 @@ fn run(args: Bs) -> Result<()> {
             };
             emit(&result, json_output, human)
         }
-        Commands::Aliases(_) => emit(
-            &store.config.aliases,
-            json_output,
-            toml::to_string_pretty(&store.config.aliases)?,
-        ),
+        Commands::Aliases(_) => unreachable!("handled before loading the store"),
         Commands::Edit(c) => {
             let result = lifecycle::edit(&store, c, json_output)?;
             emit(&result, json_output, result["id"].as_str().unwrap_or(""))

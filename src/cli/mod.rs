@@ -21,8 +21,8 @@ pub enum Commands {
     Add(Add),
     Edit(Edit),
     Move(Move),
-    /// List configured argv aliases
-    Aliases(Empty),
+    /// Discover extensions; inspect definitions or preview execution without running
+    Aliases(Aliases),
     List(List),
     Search(Search),
     Show(Show),
@@ -31,6 +31,16 @@ pub enum Commands {
     Validate(Filter),
     Prune(Prune),
     Completion(Completion),
+}
+/// Inspect aliases and PATH extensions without executing them
+#[derive(Args)]
+pub struct Aliases {
+    #[usage(choices("show", "dry-run"))]
+    pub action: Option<String>,
+    pub name: Option<String>,
+    /// Arguments to preview (after --)
+    #[usage(double_dash = "required")]
+    pub args: Vec<String>,
 }
 /// Set up a store and configuration without overwriting existing configuration
 #[derive(Args)]

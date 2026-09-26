@@ -1794,7 +1794,7 @@ fn archive_is_an_argv_alias_not_a_special_command() {
     fs::write(&f.config, config).unwrap();
     let id = "notes/a b.$(touch NEVER)";
     f.ok(&["add", "--file", "/dev/null", id]);
-    assert!(f.json(&["aliases", "--json"])["archive"].is_array());
+    assert!(f.json(&["aliases", "--json"])["archive"]["argv"].is_array());
     f.ok(&["archive", "--help"]);
     assert_eq!(
         f.json(&["archive", id, "--dry-run", "--json"])["dry_run"],
@@ -1839,7 +1839,7 @@ fn alias_configuration_rejects_unsafe_or_ambiguous_definitions() {
         "archive = []",
         "archive = ['move', '{unknown}', 'archive']",
         "archive = ['move', '{id', 'archive']",
-        "archive = 'move {id} archive'",
+        "archive = { argv = ['list'], run = 'echo ambiguous' }",
     ] {
         fs::write(&f.config, format!("{base}\n[aliases]\n{definition}\n")).unwrap();
         assert!(

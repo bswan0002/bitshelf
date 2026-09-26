@@ -239,6 +239,9 @@ pub fn config_path(p: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = p {
         return resolve(p, &cwd);
     }
+    if let Some(path) = env::var_os("BS_CONFIG").filter(|p| !p.is_empty()) {
+        return resolve(Path::new(&path), &cwd);
+    }
     // The XDG base directory specification ignores empty and relative values.
     let root = match env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {
         Some(v) if v.is_absolute() => v,

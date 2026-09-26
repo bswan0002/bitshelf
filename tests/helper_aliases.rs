@@ -108,9 +108,7 @@ fn inspection_never_executes_helpers_and_aliases_have_structured_json() {
     assert!(!f.log.exists());
     let human = f.run(&["aliases"]);
     assert!(human.status.success());
-    let roundtrip: toml::Value =
-        toml::from_str(std::str::from_utf8(&human.stdout).unwrap()).unwrap();
-    assert!(roundtrip["tickets"]["exec"].is_array());
+    assert!(String::from_utf8_lossy(&human.stdout).contains("tickets\thelper"));
     assert!(!f.log.exists());
 }
 
