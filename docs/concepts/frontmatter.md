@@ -1,0 +1,11 @@
+# Frontmatter contract
+
+Frontmatter starts only with `---` and LF or CRLF at byte zero and ends at a line containing exactly `---` (LF, CRLF or EOF). An opener without a closer is invalid. Plain Markdown otherwise has empty metadata; a leading Markdown horizontal rule therefore needs a matching closer or must be preceded by a blank line.
+
+Supported values are null, booleans, UTF-8 strings, finite IEEE-754 binary64 floats, integers in signed 64-bit or unsigned 64-bit range, arrays, and recursively string-keyed mappings. Integers outside that range are rejected, rather than rounded into floats. Unknown field names are preserved. Quoting a scalar forces string interpretation. YAML comments, quoting, key order and layout may normalize on mutation; the UTF-8 body bytes, including CRLF and lack of final newline, are preserved.
+
+Duplicate mapping keys, non-string keys, explicit YAML tags, merge keys (`<<`), and non-finite floats are rejected at every depth. Anchors and aliases are accepted as expanded values, with no identity semantics; cyclic aliases are invalid. Alias expansion is subject to the parser's resource limits. YAML 1.2 scalar rules apply (e.g. `yes` is a string). Decimal/exponent floats carry binary64 precision, not arbitrary precision.
+
+Every accepted value must survive JSON inspection, rendering/reparse, edit, move and semantic comparison without type/value loss. Invalid metadata has diagnostics, never a success-shaped null substitution; raw `show` remains available for repair. Semantic comparison ignores mapping order, comments and the two command-owned timestamp fields. It includes all other supported metadata and exact body bytes.
+
+The fixture corpus in `tests/fixtures/frontmatter` is normative. Runtime enforcement and parser replacement are tracked separately from this contract.
