@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — First public release candidate (not yet published)
+## 0.1.0 — First public release
 
 - Add explicit `bs delete <ID>...` with guarded removal, dry-run previews, and per-item outcomes. Retention shelves can use `on_expire = { move = "archive/{shelf}.{name}" }` to archive expired bits using built-in moves; default expiry still deletes. Failed moves never fall back to deletion, and uncertain batch outcomes stop further processing. `bs shelf delete <SHELF>` removes only empty shelves and their settings/guidance, with dry-run and partial-failure reporting. Recursive deletion, extension actions, and expiry metadata options remain out of scope.
 - Reject attached values on value-less flags (including `--yes=false`) with exit 2 before mutations. Recognize BOM-prefixed frontmatter without nesting it on edits. Reject ambiguous binary, leading-zero and underscore-separated integers rather than silently coercing metadata.

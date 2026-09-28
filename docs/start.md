@@ -1,16 +1,16 @@
 # Get started
 
-This walks through the core loop: keep something, find it from another context, and use or update it. It takes about five minutes. This is the 0.1.0 release candidate. Back up your store before upgrading or running destructive commands; a temporary store is a good way to try this walkthrough.
+This walks through the core loop: keep something, find it from another context, and use or update it. It takes about five minutes. Back up your store before upgrading or running destructive commands; a temporary store is a good way to try this walkthrough.
 
 ## 1. Install
 
-With [Rust installed](https://rustup.rs), install from source and set up shell completion:
+With [Homebrew](https://brew.sh) installed:
 
 ```sh
-cargo install --git https://github.com/bswan0002/bitshelf.git --locked && bs completion install
+brew install bswan0002/tap/bitshelf
 ```
 
-Completion setup previews changes and asks first. Start a new shell afterward. See [Install](install.md) for toolchain requirements and installing from a local checkout.
+Homebrew installs the executable, man page, shell completions, and matching docs and skill. If your shell does not already load Homebrew completions, run `bs completion install`; it previews changes and asks first. Start a new shell afterward. See [Install](install.md) for upgrades and source builds.
 
 ## 2. Install the agent skill globally (optional, strongly recommended)
 

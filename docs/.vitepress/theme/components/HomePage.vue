@@ -98,7 +98,7 @@ const recipes = [
         </div>
       </div>
       <p class="wrap release-note">
-        <strong>0.1.0 release candidate.</strong> Back up your store before upgrading or running destructive
+        <strong>Early 0.1.x releases.</strong> Back up your store before upgrading or running destructive
         commands. This site tracks <code>main</code> and may describe unreleased work; use the documentation
         bundled with your release for its exact contract.
       </p>

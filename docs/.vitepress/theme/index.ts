@@ -17,8 +17,8 @@ export default {
   extends: DefaultTheme,
   Layout: () => h(DefaultTheme.Layout, null, {
     'layout-top': () => h('div', { class: 'development-warning', role: 'note' }, [
-      h('span', { class: 'tag' }, 'Release candidate'),
-      h('span', '0.1.0 candidate. Back up your store before upgrading or running destructive commands.'),
+      h('span', { class: 'tag' }, 'Development docs'),
+      h('span', 'Tracks main. Use your release’s bundled docs for its exact behavior; back up your store before upgrading.'),
     ]),
   }),
   enhanceApp({ app }) {

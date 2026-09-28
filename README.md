@@ -1,6 +1,6 @@
 # bitshelf
 
-> **Unpublished release candidate at preparation of this snapshot.** No stable release has been published yet. Source installation is available; Homebrew is the intended packaged path after publication. Check GitHub Releases for current availability and keep backups of important data.
+> **Early 0.1.x releases.** Keep backups of important data. See [releases](https://github.com/bswan0002/bitshelf/releases) for available versions and [platform support](docs/platforms.md) for supported systems.
 
 Agents let us work on more things in parallel, and useful work now outlives the session that produced it. **bitshelf gives that work a home outside any one conversation, repository, or worktree**: a store of ordinary Markdown shelves that people and agents both use through the `bs` executable.
 
@@ -10,17 +10,14 @@ Agents let us work on more things in parallel, and useful work now outlives the 
 
 Saving and retrieving are deliberate. This isn't automatic agent memory.
 
-**Candidate documentation:** [Get started](docs/start.md) · [Recipes](docs/recipes/design-docs.md) · [Using with agents](docs/agents.md)
+**Documentation:** [Get started](docs/start.md) · [Recipes](docs/recipes/design-docs.md) · [Using with agents](docs/agents.md)
 
-## Quick start (from source)
+## Quick start
 
-Install [rustup](https://rustup.rs); the checkout selects the pinned Rust toolchain, then:
+With [Homebrew](https://brew.sh) installed:
 
 ```sh
-git clone https://github.com/bswan0002/bitshelf.git
-cd bitshelf
-cargo install --path . --locked
-bs completion install        # optional; start a new shell afterward
+brew install bswan0002/tap/bitshelf
 bs init --store ~/bitshelf
 ```
 
@@ -37,13 +34,14 @@ bs edit notes/pagination-research --file revised.md
 
 `bs add` needs a body source (`--file`, `--stdin` or `--interactive`). `bs completion install` previews its change and asks before editing your shell startup file; pass `--yes` when running it non-interactively.
 
-The agent skill is installed separately. Copy `skills/bitshelf/` from this checkout, or from your matching release archive, into your agent's skill directory, for example:
+Homebrew includes the matching agent skill. Copy it into your agent's global skill directory, for example:
 
 ```sh
-cp -R skills/bitshelf ~/.agents/skills/   # the destination depends on your agent
+mkdir -p ~/.agents/skills
+cp -R "$(brew --prefix bitshelf)/share/bitshelf/skills/bitshelf" ~/.agents/skills/
 ```
 
-See [Using with agents](docs/agents.md).
+The destination depends on your agent. See [Using with agents](docs/agents.md), or [Install](docs/install.md) for upgrades, completions, archives, and source builds.
 
 ## Documentation
 

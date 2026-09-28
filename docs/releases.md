@@ -6,9 +6,8 @@ Homebrew installs the same snapshots under `$(brew --prefix bitshelf)/share/bits
 `BUILD-INFO.json` records the exact source commit and package build inputs.
 
 The corresponding Git tag is `v` followed by the executable version. For example,
-after 0.1.0 is published, its immutable source documentation will be at
+the release documentation for 0.1.0 is at
 [the v0.1.0 tag](https://github.com/bswan0002/bitshelf/tree/v0.1.0/docs).
-That tag is a planned release address until publication, not a claim it exists now.
 Repository main and the website are explicitly development documentation and may
 describe features absent from an installed release.
 
