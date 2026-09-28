@@ -2,7 +2,9 @@
 
 `demand/` is Demand 2.1.0 from crates.io, under its included MIT license.
 
-One patch in `src/input.rs` removes the redundant `reset_cursor_to_end()` from successful Enter handling. `handle_submit()` calls `clear()`, which already performs that movement. Moving twice leaves the original prompt title behind when the completed prompt is rendered.
+The patch in `src/input.rs` removes the redundant `reset_cursor_to_end()` from successful Enter handling. `handle_submit()` calls `clear()`, which already performs that movement. Moving twice leaves the original prompt title behind when the completed prompt is rendered.
+
+Input also holds the existing Unix raw-mode guard for the whole prompt, starting before the first frame, instead of relying only on Console's per-key raw mode. Fast input could otherwise echo between frames and leave a duplicate title. The guard restores the original terminal settings on return or error; `event.rs` exposes it within the crate for this use.
 
 The root Cargo.toml applies this source via `[patch.crates-io]`; no installed registry files are modified. `tests/terminal.rs` exercises real PTYs and an ANSI terminal screen to catch duplicated prompt titles. Remove the vendor patch when an upstream version includes the fix.
 

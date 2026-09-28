@@ -2,6 +2,9 @@ use std::io;
 
 use console::{Key, Term};
 
+#[cfg(unix)]
+pub(crate) use unix::RawMode;
+
 pub(crate) struct EventReader {
     #[cfg(unix)]
     resize: unix::ResizeListener,
@@ -124,13 +127,13 @@ mod unix {
         }
     }
 
-    struct RawMode {
+    pub(crate) struct RawMode {
         fd: RawFd,
         original: libc::termios,
     }
 
     impl RawMode {
-        fn new(fd: RawFd) -> io::Result<Self> {
+        pub(crate) fn new(fd: RawFd) -> io::Result<Self> {
             let mut original = unsafe { mem::zeroed::<libc::termios>() };
             if unsafe { libc::tcgetattr(fd, &mut original) } != 0 {
                 return Err(io::Error::last_os_error());

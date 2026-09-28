@@ -10,6 +10,8 @@ use std::{
 };
 
 struct Terminal {
+    master: Box<dyn portable_pty::MasterPty + Send>,
+    original_local_flags: u64,
     child: Box<dyn portable_pty::Child + Send + Sync>,
     writer: Box<dyn Write + Send>,
     receiver: mpsc::Receiver<Vec<u8>>,
@@ -25,6 +27,7 @@ impl Terminal {
                 pixel_height: 0,
             })
             .unwrap();
+        let original_local_flags = pair.master.get_termios().unwrap().local_flags.bits() as u64;
         let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_bs"));
         cmd.arg("--config");
         cmd.arg(config);
@@ -49,6 +52,8 @@ impl Terminal {
             }
         });
         Self {
+            master: pair.master,
+            original_local_flags,
             child,
             writer,
             receiver,
@@ -121,6 +126,23 @@ fn init_renders_each_completed_prompt_once() {
     assert_eq!(screen.matches("Editor command").count(), 1, "{screen}");
     assert!(screen.contains("Initialized"), "{screen}");
     assert!(tmp.path().join("store/notes").is_dir());
+}
+
+#[test]
+fn prompt_restores_terminal_modes_after_submit_and_cancel() {
+    for (input, status) in [("store\r", 0), ("\u{1b}", 1)] {
+        let tmp = tempfile::tempdir().unwrap();
+        let config = tmp.path().join("config.toml");
+        let mut terminal = Terminal::spawn(&config, &["init"], &[("EDITOR", "vim")]);
+        terminal.wait_for("Store directory");
+        terminal.send(input);
+        assert_eq!(terminal.finish(), status, "{}", terminal.screen());
+        assert_eq!(
+            terminal.master.get_termios().unwrap().local_flags.bits() as u64,
+            terminal.original_local_flags,
+            "prompt must restore canonical input and echo on every exit"
+        );
+    }
 }
 
 #[test]

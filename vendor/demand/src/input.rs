@@ -368,6 +368,10 @@ impl<'a> Input<'a> {
             return Ok(self.input);
         }
 
+        // Keep input unbuffered and echo disabled before the first frame and
+        // between keys. Per-key raw mode allows fast input to echo into a frame.
+        #[cfg(unix)]
+        let _raw_mode = crate::event::RawMode::new(libc::STDIN_FILENO)?;
         let ctrlc_handle = ctrlc::show_cursor_after_ctrlc(&self.term)?;
 
         self.term.hide_cursor()?;
