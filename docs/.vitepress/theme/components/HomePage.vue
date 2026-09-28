@@ -42,7 +42,7 @@ const adds = [
 ]
 
 const recipes = [
-  { title: 'Design docs ready for implementation', body: 'Import, tag, and refresh reference material that agents implement against', link: '/recipes/design-docs' },
+  { title: 'Design docs ready for implementation', body: 'Import, tag, and refresh reference material for agents', link: '/recipes/design-docs' },
   { title: 'Focused handoffs between sessions', body: 'Brief a fresh session without re-explaining everything', link: '/recipes/handoffs' },
   { title: 'Keep code that didn’t ship', body: 'Save a component with enough context to adapt it in a later task', link: '/recipes/reusable-code' },
   { title: 'Archive without deleting', body: 'Move finished material out of everyday results', link: '/recipes/archive' },
