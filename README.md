@@ -49,7 +49,7 @@ See [Using with agents](docs/agents.md).
 
 - [Get started](docs/start.md)
 - Recipes: [design docs](docs/recipes/design-docs.md), [handoffs](docs/recipes/handoffs.md), [reusable code](docs/recipes/reusable-code.md), [archive](docs/recipes/archive.md), [expiring shelves](docs/recipes/expiring-shelves.md)
-- Reference: [shelves and configuration](docs/concepts/shelves.md), [editing](docs/concepts/editing.md), [finding](docs/concepts/finding.md), [timestamps](docs/concepts/timestamps.md), [moving](docs/concepts/moving.md), [aliases and extensions](docs/concepts/extensions.md), [pruning](docs/concepts/pruning.md), [completion](docs/concepts/completion.md), [safety and recovery](docs/concepts/safety.md), [JSON contract](docs/json.md)
+- Reference: [shelves and configuration](docs/concepts/shelves.md), [editing](docs/concepts/editing.md), [finding](docs/concepts/finding.md), [timestamps](docs/concepts/timestamps.md), [moving](docs/concepts/moving.md), [deleting](docs/concepts/deleting.md), [aliases and extensions](docs/concepts/extensions.md), [pruning](docs/concepts/pruning.md), [completion](docs/concepts/completion.md), [safety and recovery](docs/concepts/safety.md), [JSON contract](docs/json.md)
 - [Command reference](docs/reference/index.md) (generated from Usage declarations)
 - [Install](docs/install.md) · [Releasing](https://github.com/bswan0002/bitshelf/blob/main/RELEASING.md)
 

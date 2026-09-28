@@ -4,6 +4,7 @@ mod cli;
 mod completion;
 mod config;
 mod context;
+mod deleting;
 mod editor;
 mod filesystem;
 mod identity;
@@ -148,6 +149,35 @@ fn run(args: Bs) -> Result<()> {
                 emit(&shelves, json_output, human)?;
                 discovery_status(&shelves.errors)
             }
+            ShelfCommands::Delete(c) => {
+                let (result, failed) = deleting::shelf(&store, c)?;
+                let mut human = format!(
+                    "{}\t{}{}",
+                    result["status"].as_str().unwrap(),
+                    result["name"].as_str().unwrap(),
+                    result["error"]
+                        .as_str()
+                        .map(|e| format!(": {e}"))
+                        .unwrap_or_default()
+                );
+                let field = if result["status"] == "would_remove" {
+                    "planned"
+                } else {
+                    "removed"
+                };
+                for path in result[field].as_array().into_iter().flatten() {
+                    human.push_str(&format!(
+                        "\n  {field}: {}",
+                        path.as_str().unwrap_or("unknown")
+                    ));
+                }
+                emit(&result, json_output, human)?;
+                ensure!(
+                    !failed,
+                    "shelf delete incomplete: inspect reported paths before retrying"
+                );
+                Ok(())
+            }
             ShelfCommands::Add(mut c) => {
                 if c.name.is_none() {
                     usage_check(
@@ -171,6 +201,7 @@ fn run(args: Bs) -> Result<()> {
                     "store does not exist: {}; run bs init or restore the store before adding shelves",
                     store.config.store.display()
                 );
+                let _lock = crate::locking::Lock::acquire(&store)?;
                 let dest = store.shelf_path(&name, false)?;
                 let mut cfg = store.settings(&name)?;
                 if let Some(v) = c.description {
@@ -492,22 +523,18 @@ fn run(args: Bs) -> Result<()> {
             ensure!(valid, "validation failed");
             Ok(())
         }
+        Commands::Delete(c) => {
+            let (results, failed) = deleting::run(&store, c)?;
+            emit(&results, json_output, operation_summary(&results))?;
+            ensure!(
+                !failed,
+                "delete incomplete: see item errors before retrying"
+            );
+            Ok(())
+        }
         Commands::Prune(c) => {
             let (results, failed) = prune::run(&store, c)?;
-            let human = results
-                .iter()
-                .map(|r| {
-                    format!(
-                        "{}\t{}",
-                        r["status"].as_str().unwrap(),
-                        r["id"]
-                            .as_str()
-                            .or_else(|| r["path"].as_str())
-                            .unwrap_or("unknown")
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join("\n");
+            let human = operation_summary(&results);
             emit(&results, json_output, human)?;
             ensure!(
                 !failed,
@@ -528,4 +555,28 @@ fn discovery_status(errors: &[store::DiscoveryError]) -> Result<()> {
         "discovery incomplete; see reported errors"
     );
     Ok(())
+}
+
+fn operation_summary(results: &[serde_json::Value]) -> String {
+    results
+        .iter()
+        .map(|r| {
+            let mut text = format!(
+                "{}\t{}",
+                r["status"].as_str().unwrap_or("unknown"),
+                r["id"]
+                    .as_str()
+                    .or_else(|| r["path"].as_str())
+                    .unwrap_or("unknown")
+            );
+            if let Some(destination) = r["destination"].as_str() {
+                text.push_str(&format!(" -> {destination}"));
+            }
+            if let Some(error) = r["error"].as_str() {
+                text.push_str(&format!(": {error}"));
+            }
+            text
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }

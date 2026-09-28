@@ -14,7 +14,7 @@ A **store** is a directory of **shelves**. Each shelf is a directory containing 
     └── import.py
 ```
 
-Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones you create in a file manager. Other root-level entries that aren't directories, including symlinks to files, are ignored; a symlink to a directory is refused rather than treated as a shelf. There is no global registry: deleting a shelf's directory removes it from discovery. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory, and `bs shelf add [NAME]` repairs it.
+Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones you create in a file manager. Other root-level entries that aren't directories, including symlinks to files, are ignored; a symlink to a directory is refused rather than treated as a shelf. There is no global registry: deleting a shelf's directory removes it from discovery. Use [`bs shelf delete <SHELF>`](deleting.md#deleting-an-empty-shelf) for an empty shelf; it removes settings/guidance but refuses bits or other contents. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory, and `bs shelf add [NAME]` repairs it.
 
 Everything in a shelf other than bits, `bs.toml`, and `SHELF.md` is ignored by `bs` and preserved by content operations. The hidden store-level `.bitshelf/` directory holds independent writer locking; it contains no required content history.
 
@@ -72,10 +72,11 @@ required = ["title", "tags"]
 | `description` | Shown in `bs shelf list` and context. Helps people and agents pick the right shelf |
 | `required` | Built-in fields that must be present: `title`, `tags`, `created`, `updated`, `expires`. Required `tags` means the list must exist; it may be empty |
 | `retention` | Positive whole days (`14d`). New bits get `expires`. See [Expiration and pruning](pruning.md) |
+| `on_expire` | `"delete"` (default) or `{ move = "archive/{shelf}.{name}" }`; requires retention. See [expiry actions](pruning.md#archive-on-expiry) |
 | `discoverable` | `false` leaves the shelf out of default list/search and `open --pick`. See [the archive recipe](../recipes/archive.md) |
 | `[tag_rules.*]` | Namespaced tag restrictions (below) |
 
-`bs shelf add [NAME] [--description <DESCRIPTION>] [--required <REQUIRED>] [--retention <RETENTION>]` creates `bits/` and writes `bs.toml`, preserving existing contents and settings except those you pass. `--required` takes comma-separated built-in field names (for example, `title,tags`), not a TOML array. `--retention` takes a positive integer from 1 to 36500 followed by a literal `d` (for example, `14d`), not hours or fractional days. Edit the TOML directly to remove retention, change `discoverable`, or manage tag rules. Running it on an existing shelf with no new settings leaves `bs.toml` untouched; when settings change, existing comments and formatting are preserved. A shelf without `bs.toml` uses defaults. In `bs shelf list --json`, `configured` means `bs.toml` exists and `missing` means `bits/` is absent or not a directory.
+`bs shelf add [NAME] [--description <DESCRIPTION>] [--required <REQUIRED>] [--retention <RETENTION>]` creates `bits/` and writes `bs.toml`, preserving existing contents and settings except those you pass. `--required` takes comma-separated built-in field names (for example, `title,tags`), not a TOML array. `--retention` takes a positive integer from 1 to 36500 followed by a literal `d` (for example, `14d`), not hours or fractional days. Edit the TOML directly to manage `on_expire`, remove retention (and its expiry action), change `discoverable`, or manage tag rules. Running it on an existing shelf with no new settings leaves `bs.toml` untouched; when settings change, existing comments and formatting are preserved. A shelf without `bs.toml` uses defaults. In `bs shelf list --json`, `configured` means `bs.toml` exists and `missing` means `bits/` is absent or not a directory.
 
 ## Namespaced tag rules
 
@@ -109,7 +110,7 @@ bs context ui
 bs context ui --json
 ```
 
-Context returns the guidance's **full text**, plus the description, requirements, tag rules, retention, the discovery setting, the shelf root `path`, and `bits_path`. Resolve shelf-relative paths in guidance against `path`. Missing guidance is an explicit `null`; unreadable guidance is an error.
+Context returns the guidance's **full text**, plus the description, requirements, tag rules, retention, expiry action, the discovery setting, the shelf root `path`, and `bits_path`. Resolve shelf-relative paths in guidance against `path`. Missing guidance is an explicit `null`; unreadable guidance is an error.
 
 Guidance is never treated as a bit: it's excluded from metadata validation, search, completion, and cleanup. Validation still checks that it isn't a symlink. `bs` doesn't enforce guidance or run the scripts it mentions. See [Guidance versus enforcement](../agents.md#guidance-versus-enforcement).
 

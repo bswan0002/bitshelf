@@ -2919,3 +2919,274 @@ fn retention_names_and_missing_stores_are_validated() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("store does not exist"));
     assert!(!f.root.exists());
 }
+
+#[test]
+fn delete_is_explicit_guarded_and_reports_partial_results() {
+    let f = Fixture::new();
+    // Invalid metadata and even non-UTF-8 bodies can be explicitly removed.
+    f.write("notes/a", "---\ntitle: [invalid]\n---\nbody");
+    fs::write(f.bit_path("notes/b"), [0xff]).unwrap();
+    assert_eq!(f.run(&["delete"]).status.code(), Some(2));
+    assert_eq!(
+        f.run(&["delete", "--dr-run", "notes/a"]).status.code(),
+        Some(2)
+    );
+    let rows = f.json(&[
+        "delete",
+        "notes/a",
+        "notes/b",
+        "notes/a",
+        "--dry-run",
+        "--json",
+    ]);
+    assert_eq!(rows.as_array().unwrap().len(), 2);
+    assert_eq!(rows[0]["status"], "would_remove");
+    assert!(f.bit_path("notes/a").exists());
+    assert!(f.bit_path("notes/b").exists());
+    let out = f.run(&["delete", "notes/missing", "notes/a", "notes/b", "--json"]);
+    assert_eq!(out.status.code(), Some(1));
+    let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(rows[0]["status"], "skipped");
+    assert_eq!(rows[1]["status"], "removed");
+    assert_eq!(rows[2]["status"], "removed");
+    assert!(!f.bit_path("notes/a").exists());
+    assert!(!f.bit_path("notes/b").exists());
+    f.write("notes/-bit", "literal");
+    f.ok(&["delete", "--", "notes/-bit"]);
+}
+
+#[test]
+fn delete_refuses_links_directories_fifos_and_variant_names() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    f.write("notes/Exact", "keep");
+    symlink(f.bit_path("notes/Exact"), f.bit_path("notes/link")).unwrap();
+    fs::create_dir(f.bit_path("notes/directory")).unwrap();
+    assert!(
+        Command::new("mkfifo")
+            .arg(f.bit_path("notes/fifo"))
+            .status()
+            .unwrap()
+            .success()
+    );
+    for id in [
+        "notes/exact",
+        "notes/link",
+        "notes/directory",
+        "notes/fifo",
+        "notes/../Exact",
+    ] {
+        for dry in [true, false] {
+            let mut args = vec!["delete", id];
+            if dry {
+                args.push("--dry-run");
+            }
+            assert_eq!(f.run(&args).status.code(), Some(1), "{id}");
+        }
+    }
+    assert_eq!(
+        fs::read_to_string(f.bit_path("notes/Exact")).unwrap(),
+        "keep"
+    );
+}
+
+#[test]
+fn expiry_move_previews_preserves_bytes_and_uses_a_candidate_snapshot() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
+    f.ok(&["shelf", "add", "archive", "--retention", "1d"]);
+    fs::write(
+        f.root.join("tmp/bs.toml"),
+        "retention = '1d'\non_expire = { move = 'archive/{shelf}.{name}' }\n",
+    )
+    .unwrap();
+    let raw = "---\nexpires: '2000-01-01T00:00:00Z'\ncustom: kept\n---\nbody\n";
+    f.write("tmp/a", raw);
+    let dry = f.json(&["prune", "--dry-run", "--json"]);
+    assert_eq!(dry[0]["status"], "would_move");
+    assert_eq!(dry[0]["destination"], "archive/tmp.a");
+    assert!(f.bit_path("tmp/a").exists());
+    assert!(!f.bit_path("archive/tmp.a").exists());
+    let human = f.ok(&["prune", "--dry-run"]);
+    assert!(String::from_utf8_lossy(&human.stdout).contains("tmp/a -> archive/tmp.a"));
+    let rows = f.json(&["prune", "--json"]);
+    assert_eq!(rows[0]["status"], "moved");
+    assert_eq!(rows.as_array().unwrap().len(), 1);
+    assert!(!f.bit_path("tmp/a").exists());
+    assert_eq!(
+        fs::read_to_string(f.bit_path("archive/tmp.a")).unwrap(),
+        raw
+    );
+    // A retention-enabled destination acts only on the next invocation.
+    assert_eq!(f.json(&["prune", "--json"])[0]["status"], "removed");
+    let context = f.json(&["context", "tmp", "--json"]);
+    assert_eq!(context["on_expire"]["move"], "archive/{shelf}.{name}");
+    // Existing policy and comments survive shelf setting updates.
+    f.ok(&["shelf", "add", "tmp", "--description", "temporary"]);
+    assert_eq!(
+        f.json(&["context", "tmp", "--json"])["on_expire"],
+        context["on_expire"]
+    );
+}
+
+#[test]
+fn expiry_move_failures_never_delete_or_overwrite() {
+    let f = Fixture::new();
+    f.ok(&["shelf", "add", "tmp", "--retention", "1d"]);
+    f.ok(&["shelf", "add", "archive"]);
+    f.ok(&["shelf", "add", "strict", "--required", "title"]);
+    let raw = "---\nexpires: '2000-01-01T00:00:00Z'\n---\nbody";
+    f.write("tmp/a", raw);
+    f.write("archive/a", "existing");
+    for destination in [
+        "archive/{name}",
+        "missing/{name}",
+        "strict/{name}",
+        "tmp/{name}",
+    ] {
+        fs::write(
+            f.root.join("tmp/bs.toml"),
+            format!("retention = '1d'\non_expire = {{ move = '{destination}' }}\n"),
+        )
+        .unwrap();
+        for args in [
+            vec!["prune", "tmp", "--json", "--dry-run"],
+            vec!["prune", "tmp", "--json"],
+        ] {
+            let out = f.run(&args);
+            assert_eq!(out.status.code(), Some(1), "{destination}");
+            let rows: Value = serde_json::from_slice(&out.stdout).unwrap();
+            assert_eq!(rows[0]["status"], "skipped");
+            assert!(rows[0]["error"].is_string());
+            assert_eq!(fs::read_to_string(f.bit_path("tmp/a")).unwrap(), raw);
+            assert_eq!(
+                fs::read_to_string(f.bit_path("archive/a")).unwrap(),
+                "existing"
+            );
+        }
+    }
+    // Explicit delete remains the default-compatible action.
+    fs::write(
+        f.root.join("tmp/bs.toml"),
+        "retention = '1d'\non_expire = 'delete'",
+    )
+    .unwrap();
+    assert_eq!(f.json(&["prune", "tmp", "--json"])[0]["status"], "removed");
+}
+
+#[test]
+fn expiry_configuration_rejects_extensions_unknown_keys_and_bad_templates() {
+    let f = Fixture::new();
+    for text in [
+        "on_expire = 'delete'",
+        "retention = '1d'\non_expire = 'archive'",
+        "retention = '1d'\non_expire = ['delete']",
+        "retention = '1d'\non_expire = { exec = 'true' }",
+        "retention = '1d'\non_expire = { move = 'archive/{name}', unset = 'expires' }",
+        "retention = '1d'\non_expire = { move = 'archive/{id}' }",
+        "retention = '1d'\non_expire = { move = 'archive/{name' }",
+        "retention = '1d'\non_expire = { move = 'archive/name}' }",
+        "retention = '1d'\non_expire = { move = '../{name}' }",
+        "retention = '1d'\non_expire = { move = 'archive' }",
+    ] {
+        fs::write(f.root.join("notes/bs.toml"), text).unwrap();
+        assert_eq!(
+            f.run(&["validate", "--json"]).status.code(),
+            Some(1),
+            "{text}"
+        );
+        assert_eq!(
+            f.run(&["prune", "notes", "--dry-run"]).status.code(),
+            Some(1),
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn shelf_delete_previews_and_removes_only_empty_shelves() {
+    let f = Fixture::new();
+    f.write("notes/SHELF", "guidance");
+    let preview = f.json(&["shelf", "delete", "notes", "--dry-run", "--json"]);
+    assert_eq!(preview["status"], "would_remove");
+    assert_eq!(preview["planned"].as_array().unwrap().len(), 4);
+    assert!(preview["removed"].as_array().unwrap().is_empty());
+    assert!(f.root.join("notes/bs.toml").exists());
+    assert!(f.root.join("notes/SHELF.md").exists());
+    let done = f.json(&["shelf", "delete", "notes", "--json"]);
+    assert_eq!(done["status"], "removed");
+    assert_eq!(done["planned"], done["removed"]);
+    assert!(!f.root.join("notes").exists());
+    assert!(f.config.exists());
+    assert!(
+        f.json(&["shelf", "list", "--json"])
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(f.run(&["shelf", "delete", "notes"]).status.code(), Some(1));
+    assert_eq!(f.run(&["shelf", "delete"]).status.code(), Some(2));
+    // A configured shelf missing its bits directory is still removable.
+    fs::create_dir(f.root.join("broken")).unwrap();
+    fs::write(f.root.join("broken/bs.toml"), "malformed = [").unwrap();
+    f.ok(&["shelf", "delete", "broken"]);
+    // So is a manually-created shelf with only an empty bits directory.
+    fs::create_dir_all(f.root.join("-manual/bits")).unwrap();
+    f.ok(&["shelf", "delete", "--", "-manual"]);
+}
+
+#[test]
+fn shelf_delete_refuses_bits_unmanaged_contents_and_symlinks_without_changes() {
+    use std::os::unix::fs::symlink;
+    let f = Fixture::new();
+    let before = fs::read(f.root.join("notes/bs.toml")).unwrap();
+    for name in [
+        "bits/a.md",
+        "bits/.draft.md",
+        "attachment.png",
+        "scripts",
+        ".hidden",
+    ] {
+        let path = f.root.join("notes").join(name);
+        if name == "scripts" {
+            fs::create_dir(&path).unwrap();
+        } else {
+            fs::write(&path, "kept").unwrap();
+        }
+        for args in [
+            vec!["shelf", "delete", "notes", "--dry-run", "--json"],
+            vec!["shelf", "delete", "notes", "--json"],
+        ] {
+            let out = f.run(&args);
+            assert_eq!(out.status.code(), Some(1));
+            let row: Value = serde_json::from_slice(&out.stdout).unwrap();
+            assert_eq!(row["status"], "skipped");
+            assert!(row["removed"].as_array().unwrap().is_empty());
+            assert_eq!(fs::read(f.root.join("notes/bs.toml")).unwrap(), before);
+            assert!(path.exists());
+            assert!(f.root.join("notes/bits").is_dir());
+        }
+        if name == "scripts" {
+            fs::remove_dir(&path).unwrap();
+        } else {
+            fs::remove_file(&path).unwrap();
+        }
+    }
+    symlink(&f.config, f.root.join("notes/SHELF.md")).unwrap();
+    assert_eq!(f.run(&["shelf", "delete", "notes"]).status.code(), Some(1));
+    assert!(f.config.exists());
+    assert!(f.root.join("notes/bits").exists());
+    symlink(f.root.join("notes"), f.root.join("linked")).unwrap();
+    assert_eq!(f.run(&["shelf", "delete", "linked"]).status.code(), Some(1));
+    fs::create_dir(f.root.join("auxiliary")).unwrap();
+    assert_eq!(
+        f.run(&["shelf", "delete", "auxiliary"]).status.code(),
+        Some(1)
+    );
+    assert_eq!(
+        f.run(&["shelf", "delete", "--recursive", "notes"])
+            .status
+            .code(),
+        Some(2)
+    );
+}

@@ -58,6 +58,24 @@ fn competing_writer_times_out_then_recovers_after_process_death() {
             }
         }
         assert!(ready);
+        fs::write(root.join("notes/bits/delete-me.md"), "body").unwrap();
+        for args in [
+            vec!["delete", "notes/delete-me"],
+            vec!["shelf", "delete", "notes"],
+        ] {
+            let blocked = run(&args);
+            assert!(!blocked.status.success());
+            assert!(String::from_utf8_lossy(&blocked.stderr).contains("timed out"));
+        }
+        assert!(
+            run(&["delete", "notes/delete-me", "--dry-run"])
+                .status
+                .success()
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("notes/bits/delete-me.md")).unwrap(),
+            "body"
+        );
         let result = run(&["add", "notes/blocked", "--file", "/dev/null"]);
         assert!(!result.status.success());
         assert!(String::from_utf8_lossy(&result.stderr).contains("timed out"));

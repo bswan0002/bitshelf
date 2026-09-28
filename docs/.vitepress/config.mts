@@ -67,6 +67,7 @@ export default defineConfig({
         { text: 'Timestamps', link: '/concepts/timestamps' },
         { text: 'Timestamp fixtures', link: '/concepts/timestamp-fixtures' },
         { text: 'Moving bits', link: '/concepts/moving' },
+        { text: 'Deleting bits', link: '/concepts/deleting' },
         { text: 'Expiration and pruning', link: '/concepts/pruning' },
         { text: 'Shell completion', link: '/concepts/completion' },
         { text: 'Safety and recovery', link: '/concepts/safety' },

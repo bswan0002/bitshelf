@@ -54,6 +54,7 @@ pub const BUILTINS: &[&str] = &[
     "add",
     "edit",
     "move",
+    "delete",
     "aliases",
     "list",
     "search",

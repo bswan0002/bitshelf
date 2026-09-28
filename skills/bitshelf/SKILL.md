@@ -1,6 +1,6 @@
 ---
 name: bitshelf
-description: Saves, finds, and retrieves deliberately kept material—notes, design documents, reusable code, exact prompts, and session handoffs—in a local Markdown store shared by people and agents across sessions and repositories. Use when asked to save something to bitshelf or "bs", look up stored material (such as design docs or snippets), preserve a prompt, prepare a handoff for another session, move/archive a stored bit, or set up a shelf's conventions or an archive workflow.
+description: Saves, finds, and retrieves deliberately kept material—notes, design documents, reusable code, exact prompts, and session handoffs—in a local Markdown store shared by people and agents across sessions and repositories. Use when asked to save something to bitshelf or "bs", look up stored material (such as design docs or snippets), preserve a prompt, prepare a handoff for another session, move/archive or delete stored material, prune expired bits, or set up shelf conventions, expiry policies, or an archive workflow.
 ---
 
 # bitshelf
@@ -43,6 +43,10 @@ remain reserved. Use `--tags` during a move when destination tag rules require r
 inspect the destination before repeating the move. Inspect both
 paths when an interruption leaves two copies. Configure shelves/aliases only when
 requested; use the user's destination rather than assuming an archive shelf exists.
+
+## Delete or manage expiration
+
+When asked to delete bits or shelves, prune expired material, or configure expiry actions, read [deletion and expiry](references/deletion-and-expiry.md). It covers authorization, dry-run review, empty-shelf deletion, built-in archive-on-expiry, and partial-failure recovery. Configure an expiry action only on request; configuring it does not authorize running prune.
 
 ## Shelf-local helper recipe
 

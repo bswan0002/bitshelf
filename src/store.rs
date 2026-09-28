@@ -47,6 +47,7 @@ pub struct Shelf {
     pub guidance_available: bool,
     pub required: Vec<String>,
     pub retention: Option<String>,
+    pub on_expire: Option<crate::config::ExpiryAction>,
 }
 #[derive(Serialize)]
 pub struct Validation {
@@ -222,6 +223,7 @@ impl Store {
                     description: cfg.description,
                     required: cfg.required,
                     retention: cfg.retention,
+                    on_expire: cfg.on_expire,
                 }))
             })();
             match result {

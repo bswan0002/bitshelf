@@ -17,7 +17,17 @@ bs prune tmp --dry-run --json    # see what would be removed
 bs prune tmp                     # remove expired bits
 ```
 
-Pruning removes files permanently; they don't go to the trash. Always preview first, and keep backups if you might want something back. To keep a bit, move it to a permanent shelf before it expires. Moves preserve `expires`, but permanent shelves are never pruned.
+By default, pruning removes files permanently; they don't go to the trash. Always preview first, and keep backups if you might want something back. To keep a bit, move it to a permanent shelf before it expires. Moves preserve `expires`, but permanent shelves are never pruned.
+
+## Archive instead of deleting
+
+Create a permanent archive shelf with `bs shelf add archive`, then add this top-level setting to `tmp/bs.toml` alongside its retention setting:
+
+```toml
+on_expire = { move = "archive/{shelf}.{name}" }
+```
+
+Preview with `bs prune tmp --dry-run --json`. Expired bits now move into the archive without overwriting existing bits; failures never fall back to deletion. Expiration metadata is preserved, so keep the destination permanent. This uses the built-in move operation, not an archive alias. See [archive-on-expiry rules](../concepts/pruning.md#archive-on-expiry).
 
 ## Schedule it
 

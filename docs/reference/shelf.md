@@ -3,7 +3,7 @@
 
 - **Usage:** `bs shelf <SUBCOMMAND>`
 
-Discover or create shelves
+Discover, create, or delete empty shelves
 
 ## Flags
 - **`-h --help`** — Print help
@@ -11,4 +11,5 @@ Discover or create shelves
 ## Subcommands
 
 - [`bs shelf add [FLAGS] [NAME]`](./shelf/add.md)
+- [`bs shelf delete [--dry-run] <SHELF>`](./shelf/delete.md)
 - [`bs shelf list`](./shelf/list.md)

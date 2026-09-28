@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 #[derive(Debug, PartialEq)]
 pub enum Decision {
     Keep,
-    Remove,
+    Expire,
     Skip(&'static str),
 }
 
@@ -22,7 +22,7 @@ pub fn decide(bit: &Bit, shelf: &ShelfConfig, now: DateTime<Utc>) -> Decision {
     if !bit.errors.is_empty() {
         return Decision::Skip("invalid metadata");
     }
-    Decision::Remove
+    Decision::Expire
 }
 
 #[cfg(test)]
@@ -47,7 +47,7 @@ mod tests {
             decide(&bit, &temporary, now - chrono::Duration::seconds(1)),
             Decision::Keep
         );
-        assert_eq!(decide(&bit, &temporary, now), Decision::Remove);
+        assert_eq!(decide(&bit, &temporary, now), Decision::Expire);
         assert_eq!(decide(&bit, &ShelfConfig::default(), now), Decision::Keep);
         let bad = crate::bit::inspect(
             "tmp/bad".into(),
@@ -114,6 +114,7 @@ fn run_with(
     }
     let mut failed = !results.is_empty();
     for b in bits.results {
+        let mut destination = None;
         let operation = (|| -> anyhow::Result<Option<&str>> {
             let shelf = b.id.split('/').next().unwrap();
             let cfg = settings
@@ -123,35 +124,77 @@ fn run_with(
             match decide(&b, cfg, now) {
                 Decision::Keep => return Ok(None),
                 Decision::Skip(error) => anyhow::bail!(error),
-                Decision::Remove => (),
+                Decision::Expire => (),
             }
+            let (_, name) = b.id.split_once('/').unwrap();
+            destination = cfg
+                .on_expire
+                .as_ref()
+                .map(|action| action.destination(shelf, name))
+                .transpose()?
+                .flatten();
             before_remove(&b);
             store.safe(&b.path)?;
             crate::filesystem::unchanged(&b.path, b.raw.as_bytes())?;
-            // Re-read settings as well: disabling retention must stop deletion.
+            // Any policy change invalidates the planned operation, not just
+            // disabling retention. Never delete after a failed move.
             anyhow::ensure!(
-                decide(&b, &store.settings(shelf)?, now) == Decision::Remove,
-                "retention changed during prune"
+                &store.settings(shelf)? == cfg,
+                "shelf settings (retention or on_expire) changed during prune"
             );
-            if c.dry_run {
-                return Ok(Some("would_remove"));
+            if let Some(destination) = &destination {
+                crate::moving::run_locked(
+                    store,
+                    crate::cli::Move {
+                        id: b.id.clone(),
+                        destination: destination.clone(),
+                        title: None,
+                        tags: None,
+                        set: vec![],
+                        set_json: vec![],
+                        unset: vec![],
+                        dry_run: c.dry_run,
+                    },
+                    Some(b.raw.as_bytes()),
+                )?;
+                Ok(Some(if c.dry_run { "would_move" } else { "moved" }))
+            } else {
+                crate::deleting::remove_locked(store, &b.path, b.raw.as_bytes(), c.dry_run)?;
+                Ok(Some(if c.dry_run { "would_remove" } else { "removed" }))
             }
-            crate::filesystem::remove(&b.path, b.raw.as_bytes())?;
-            Ok(Some("removed"))
         })();
         match operation {
             Ok(None) => (),
-            Ok(Some(status)) => results.push(json!({"id":b.id,"path":b.path,"status":status})),
+            Ok(Some(status)) => {
+                let mut row = json!({"id":b.id,"path":b.path,"status":status});
+                if let Some(destination) = destination {
+                    row["destination"] = json!(destination);
+                }
+                results.push(row);
+            }
             Err(error) => {
                 failed = true;
-                let status = if !c.dry_run && error.to_string().contains("was removed, but") {
-                    "removed_with_error"
-                } else {
-                    "skipped"
+                let move_error = error.downcast_ref::<crate::moving::UncertainMove>();
+                let removed = error
+                    .downcast_ref::<crate::filesystem::RemovalUncertain>()
+                    .is_some();
+                let status = match move_error {
+                    Some(crate::moving::UncertainMove::SourceRemoved) => "moved_with_error",
+                    Some(_) => "move_uncertain",
+                    None if removed => "removed_with_error",
+                    None => "skipped",
                 };
-                results.push(
-                    json!({"id":b.id,"path":b.path,"status":status,"error":format!("{error:#}")}),
-                );
+                let mut row =
+                    json!({"id":b.id,"path":b.path,"status":status,"error":format!("{error:#}")});
+                if let Some(destination) = destination {
+                    row["destination"] = json!(destination);
+                }
+                results.push(row);
+                // After uncertain publication/durability, leave later candidates
+                // untouched so the user can inspect before any further work.
+                if move_error.is_some() || removed {
+                    break;
+                }
             }
         }
     }
@@ -202,5 +245,137 @@ mod operation_tests {
             assert_eq!(row["status"], "skipped");
             assert!(std::path::Path::new(row["path"].as_str().unwrap()).exists());
         }
+    }
+    fn fixture() -> (tempfile::TempDir, crate::store::Store) {
+        let temp = tempfile::tempdir().unwrap();
+        let store = crate::store::Store {
+            config: crate::config::Config {
+                store: temp.path().into(),
+                editor: None,
+                aliases: Default::default(),
+            },
+        };
+        for shelf in ["tmp", "archive"] {
+            std::fs::create_dir_all(temp.path().join(format!("{shelf}/bits"))).unwrap();
+        }
+        std::fs::write(
+            temp.path().join("tmp/bs.toml"),
+            "retention = '1d'\non_expire = { move = 'archive/{name}' }",
+        )
+        .unwrap();
+        for name in ["a", "b"] {
+            store
+                .write_bit(
+                    &format!("tmp/{name}"),
+                    "---\nexpires: '2000-01-01T00:00:00Z'\n---\nbody",
+                )
+                .unwrap();
+        }
+        (temp, store)
+    }
+
+    #[test]
+    fn expiry_move_rechecks_snapshot_and_policy() {
+        for change in ["body", "action", "retention"] {
+            for dry_run in [false, true] {
+                let (_temp, store) = fixture();
+                let (rows, failed) =
+                    run_with(
+                        &store,
+                        crate::cli::Prune {
+                            shelf: Some("tmp".into()),
+                            dry_run,
+                        },
+                        |bit| {
+                            if bit.id != "tmp/a" {
+                                return;
+                            }
+                            match change {
+                                "body" => std::fs::write(&bit.path, format!("{}changed", bit.raw))
+                                    .unwrap(),
+                                "action" => std::fs::write(
+                                    store.config.store.join("tmp/bs.toml"),
+                                    "retention = '1d'\non_expire = 'delete'",
+                                )
+                                .unwrap(),
+                                _ => std::fs::write(store.config.store.join("tmp/bs.toml"), "")
+                                    .unwrap(),
+                            }
+                        },
+                    )
+                    .unwrap();
+                assert!(failed);
+                assert_eq!(rows[0]["status"], "skipped");
+                assert!(store.existing_bit("tmp/a").is_ok());
+                assert!(!store.bit_path("archive/a").unwrap().exists());
+            }
+        }
+    }
+
+    #[test]
+    fn expiry_move_faults_preserve_sources_or_report_uncertainty_and_stop() {
+        use crate::filesystem::{self, Stage};
+        for (target, stage, expected) in [
+            ("tmp/a", Stage::Remove, "skipped"),
+            ("tmp/a", Stage::DirectorySync, "moved_with_error"),
+            ("archive/a", Stage::DirectorySync, "move_uncertain"),
+            ("archive/a", Stage::Publish, "move_uncertain"),
+        ] {
+            let (_temp, store) = fixture();
+            let (rows, failed) = run_with(
+                &store,
+                crate::cli::Prune {
+                    shelf: Some("tmp".into()),
+                    dry_run: false,
+                },
+                |b| {
+                    if b.id == "tmp/a" {
+                        filesystem::inject(&store.bit_path(target).unwrap(), stage);
+                    }
+                },
+            )
+            .unwrap();
+            assert!(failed);
+            assert_eq!(rows[0]["status"], expected);
+            assert_eq!(rows[0]["destination"], "archive/a");
+            if expected == "skipped" {
+                assert!(store.existing_bit("tmp/a").is_ok());
+                assert!(!store.bit_path("archive/a").unwrap().exists());
+                assert_eq!(rows[1]["status"], "moved");
+            } else {
+                assert_eq!(rows.len(), 1);
+                assert!(store.existing_bit("tmp/b").is_ok());
+                if expected == "moved_with_error" {
+                    assert!(!store.bit_path("tmp/a").unwrap().exists());
+                    assert!(store.existing_bit("archive/a").is_ok());
+                } else {
+                    assert!(store.existing_bit("tmp/a").is_ok());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prune_removal_durability_failure_stops_later_candidates() {
+        let (_temp, store) = fixture();
+        std::fs::write(store.config.store.join("tmp/bs.toml"), "retention = '1d'").unwrap();
+        let (rows, failed) = run_with(
+            &store,
+            crate::cli::Prune {
+                shelf: Some("tmp".into()),
+                dry_run: false,
+            },
+            |b| {
+                if b.id == "tmp/a" {
+                    crate::filesystem::inject(&b.path, crate::filesystem::Stage::DirectorySync);
+                }
+            },
+        )
+        .unwrap();
+        assert!(failed);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0]["status"], "removed_with_error");
+        assert!(!store.bit_path("tmp/a").unwrap().exists());
+        assert!(store.existing_bit("tmp/b").is_ok());
     }
 }

@@ -92,16 +92,24 @@ pub fn publish(
         )
     })
 }
+#[derive(Debug)]
+pub struct RemovalUncertain(pub std::path::PathBuf);
+impl std::fmt::Display for RemovalUncertain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} was removed, but parent-directory durability is uncertain",
+            self.0.display()
+        )
+    }
+}
+impl std::error::Error for RemovalUncertain {}
+
 pub fn remove(path: &Path, before: &[u8]) -> Result<()> {
     unchanged(path, before)?;
     check(path, Stage::Remove)?;
     fs::remove_file(path)?;
-    sync_parent(path).with_context(|| {
-        format!(
-            "{} was removed, but parent-directory durability is uncertain",
-            path.display()
-        )
-    })
+    sync_parent(path).context(RemovalUncertain(path.into()))
 }
 
 #[cfg(test)]

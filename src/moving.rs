@@ -5,7 +5,37 @@ use chrono::Utc;
 use serde_json::{Value, json};
 use std::fs;
 
+#[derive(Debug)]
+pub enum UncertainMove {
+    Publication,
+    SourceRemoved,
+    SourceState,
+    Rollback,
+}
+impl std::fmt::Display for UncertainMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Publication => "destination publication failed; source preserved; inspect destination before retrying",
+            Self::SourceRemoved => "move destination saved and source removed; destination retained; source-directory durability uncertain",
+            Self::SourceState => "could not determine source state after move failure; inspect source and destination before retrying",
+            Self::Rollback => "move rollback failed; inspect both source and destination before retrying",
+        })
+    }
+}
+impl std::error::Error for UncertainMove {}
+
 pub fn run(store: &Store, args: Move) -> Result<Value> {
+    let _lock = if args.dry_run {
+        None
+    } else {
+        Some(crate::locking::Lock::acquire(store)?)
+    };
+    run_locked(store, args, None)
+}
+
+/// Caller owns the writer lock (unless dry-run). An expiry operation supplies
+/// its discovery snapshot so a changed bit cannot silently become a new input.
+pub fn run_locked(store: &Store, args: Move, expected: Option<&[u8]>) -> Result<Value> {
     let source = store.existing_bit(&args.id)?;
     let (_, name) = args.id.split_once('/').unwrap();
     let id = if args.destination.contains('/') {
@@ -19,13 +49,14 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         !destination.try_exists()?,
         "destination {id} already exists; nothing moved"
     );
-    let _lock = if args.dry_run {
-        None
-    } else {
-        Some(crate::locking::Lock::acquire(store)?)
-    };
     let before =
         fs::read_to_string(&source).with_context(|| format!("cannot read bit {}", args.id))?;
+    if let Some(expected) = expected {
+        ensure!(
+            before.as_bytes() == expected,
+            "source changed during prune; nothing moved"
+        );
+    }
     let now = Utc::now();
     let raw = before.clone();
     let after = if args.set.is_empty()
@@ -62,9 +93,7 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         None,
         Some(fs::metadata(&source)?.permissions()),
     )
-    .context(
-        "destination publication failed; source preserved; inspect destination before retrying",
-    )?;
+    .context(UncertainMove::Publication)?;
     let remove = (|| -> Result<()> {
         store.safe(&source)?;
         ensure!(
@@ -75,8 +104,8 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
         Ok(())
     })();
     if let Err(error) = remove {
-        if !source.try_exists()? {
-            return Err(error).context("move destination saved and source removed; destination retained; source-directory durability uncertain");
+        if !source.try_exists().context(UncertainMove::SourceState)? {
+            return Err(error).context(UncertainMove::SourceRemoved);
         }
         // Do not remove a destination externally changed since publication.
         let rollback = (|| -> Result<()> {
@@ -89,11 +118,10 @@ pub fn run(store: &Store, args: Move) -> Result<Value> {
             Ok(())
         })();
         if let Err(rollback) = rollback {
-            anyhow::bail!(
+            return Err(anyhow::anyhow!(
                 "move did not complete: {error:#}; rollback failed: {rollback:#}; inspect both {} and {} before retrying",
-                source.display(),
-                destination.display()
-            );
+                source.display(), destination.display()
+            )).context(UncertainMove::Rollback);
         }
         return Err(error)
             .context("move did not complete; source preserved, destination rolled back");

@@ -3,7 +3,7 @@
 
 - **Usage:** `bs prune [--dry-run] [SHELF]`
 
-Remove explicitly expired bits only from retention-enabled shelves
+Apply delete/move expiry policies to explicitly expired bits on retention-enabled shelves
 
 ## Arguments
 - **`[SHELF]`**

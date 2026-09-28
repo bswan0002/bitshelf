@@ -14,6 +14,10 @@ Add and move never overwrite existing destinations. Edit compares the source byt
 
 Move publishes a destination before removing the source. A crash or partial failure can leave two copies; inspect both before retrying. Never assume an error means nothing was saved. Diagnostics identify publication and durability failures; successful cleanup is separate from content publication.
 
+## Deletion and expiration
+
+[Explicit deletion](deleting.md) and default [pruning](pruning.md) permanently unlink bits without prompting or using the trash. Preview first and keep backups. Expiry policies can move bits instead; failed archival never falls back to deletion. Batch operations report partial outcomes and stop after uncertain publication, rollback, or durability. Inspect paths before retrying; an error may follow a completed removal or move.
+
 ## Scope and limits
 
 bs targets trusted local filesystems. Conflict checks are best effort against normal external editors, not filesystem compare-and-swap against hostile concurrent path replacement. No distributed/cloud-folder locking is promised. Atomicity avoids partial files; file and directory syncing additionally bound power-loss durability. There is no multi-file transaction. Attachments and links are not moved or rewritten.

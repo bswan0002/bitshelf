@@ -21,6 +21,7 @@ pub enum Commands {
     Add(Add),
     Edit(Edit),
     Move(Move),
+    Delete(Delete),
     /// Discover extensions; inspect definitions or preview execution without running
     Aliases(Aliases),
     List(List),
@@ -51,7 +52,7 @@ pub struct Init {
     #[usage(long)]
     pub editor: Option<String>,
 }
-/// Discover or create shelves
+/// Discover, create, or delete empty shelves
 #[derive(Args)]
 pub struct Shelf {
     #[usage(subcommand)]
@@ -61,6 +62,16 @@ pub struct Shelf {
 pub enum ShelfCommands {
     List(Empty),
     Add(ShelfAdd),
+    Delete(ShelfDelete),
+}
+/// Delete an empty shelf and its settings/guidance; refuse all other contents
+#[derive(Args)]
+pub struct ShelfDelete {
+    #[usage(complete = complete_shelf_delete)]
+    pub shelf: String,
+    /// Validate and preview without changing files
+    #[usage(long)]
+    pub dry_run: bool,
 }
 #[derive(Args)]
 pub struct Empty {}
@@ -223,7 +234,18 @@ pub struct Filter {
     #[usage(complete = complete_filter)]
     pub shelf: Option<String>,
 }
-/// Remove explicitly expired bits only from retention-enabled shelves
+/// Delete bits permanently without prompting; preview first with --dry-run
+#[derive(Args)]
+pub struct Delete {
+    /// One or more exact SHELF/NAME identifiers
+    #[usage(required, var_min = 1, complete = complete_delete)]
+    pub id: Vec<String>,
+    /// Preview without changing files
+    #[usage(long)]
+    pub dry_run: bool,
+}
+
+/// Apply delete/move expiry policies to explicitly expired bits on retention-enabled shelves
 #[derive(Args)]
 pub struct Prune {
     #[usage(complete = complete_prune)]
@@ -345,3 +367,7 @@ pub struct Move {
     pub dry_run: bool,
 }
 completer!(complete_move, Move, true, false);
+
+completer!(complete_delete, Delete, true, false);
+
+completer!(complete_shelf_delete, ShelfDelete, false, true);

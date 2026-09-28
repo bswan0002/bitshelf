@@ -16,8 +16,57 @@ pub struct ShelfConfig {
     #[serde(default)]
     pub required: Vec<String>,
     pub retention: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_expire: Option<ExpiryAction>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tag_rules: BTreeMap<String, TagRule>,
+}
+/// Deliberately not an extension dispatcher: only built-in expiry operations.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum ExpiryAction {
+    Delete(DeleteAction),
+    Move { r#move: String },
+}
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DeleteAction {
+    Delete,
+}
+impl ExpiryAction {
+    pub fn destination(&self, shelf: &str, name: &str) -> Result<Option<String>> {
+        let Self::Move { r#move: template } = self else {
+            return Ok(None);
+        };
+        let mut rest = template.as_str();
+        let mut destination = String::new();
+        while let Some(start) = rest.find('{') {
+            let (literal, tail) = rest.split_at(start);
+            ensure!(
+                !literal.contains('}'),
+                "unmatched brace in on_expire move template"
+            );
+            destination.push_str(literal);
+            let end = tail
+                .find('}')
+                .context("unclosed placeholder in on_expire move template")?;
+            destination.push_str(match &tail[..=end] {
+                "{shelf}" => shelf,
+                "{name}" => name,
+                token => anyhow::bail!(
+                    "unsupported on_expire placeholder {token}; use {{shelf}} or {{name}}"
+                ),
+            });
+            rest = &tail[end + 1..];
+        }
+        ensure!(
+            !rest.contains('}'),
+            "unmatched brace in on_expire move template"
+        );
+        destination.push_str(rest);
+        crate::identity::BitId::parse(&destination)?;
+        Ok(Some(destination))
+    }
 }
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -52,6 +101,7 @@ impl Default for ShelfConfig {
             description: None,
             required: vec![],
             retention: None,
+            on_expire: None,
             tag_rules: BTreeMap::new(),
         }
     }
@@ -87,6 +137,10 @@ impl ShelfConfig {
         }
         if let Some(r) = &self.retention {
             retention(r)?;
+        }
+        if let Some(action) = &self.on_expire {
+            ensure!(self.retention.is_some(), "on_expire requires retention");
+            action.destination("shelf", "name")?;
         }
         Ok(())
     }
@@ -172,6 +226,18 @@ impl ShelfConfig {
             "retention",
             self.retention.clone().map(Into::into),
         );
+        if current.on_expire != self.on_expire {
+            let value = match &self.on_expire {
+                None => None,
+                Some(ExpiryAction::Delete(_)) => Some("delete".into()),
+                Some(ExpiryAction::Move { r#move }) => {
+                    let mut table = toml_edit::InlineTable::new();
+                    table.insert("move", r#move.clone().into());
+                    Some(table.into())
+                }
+            };
+            set(&mut doc, "on_expire", value);
+        }
         let text = doc.to_string();
         ensure!(
             &toml::from_str::<Self>(&text)? == self,
@@ -321,6 +387,34 @@ mod tests {
         let serialized = toml::to_string(&cfg).unwrap();
         let roundtrip: ShelfConfig = toml::from_str(&serialized).unwrap();
         assert_eq!(roundtrip.tag_rules["project"].allowed, ["bitshelf"]);
+    }
+    #[test]
+    fn expiry_templates_are_single_pass_and_settings_roundtrip() {
+        let action = ExpiryAction::Move {
+            r#move: "archive/{shelf}.{name}".into(),
+        };
+        assert_eq!(
+            action.destination("tmp", "{shelf}").unwrap().unwrap(),
+            "archive/tmp.{shelf}"
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("bs.toml");
+        std::fs::write(&path, "# keep\nretention = '1d' # duration\n").unwrap();
+        let mut cfg = ShelfConfig::load(&path).unwrap();
+        cfg.on_expire = Some(action);
+        cfg.save(&path).unwrap();
+        assert_eq!(ShelfConfig::load(&path).unwrap(), cfg);
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("# duration")
+        );
+        cfg.on_expire = Some(ExpiryAction::Delete(DeleteAction::Delete));
+        cfg.save(&path).unwrap();
+        assert_eq!(ShelfConfig::load(&path).unwrap(), cfg);
+        cfg.on_expire = None;
+        cfg.save(&path).unwrap();
+        assert_eq!(ShelfConfig::load(&path).unwrap(), cfg);
     }
     fn parse(editor: &str) -> Result<Config> {
         let config: Config = toml::from_str(&format!("store = '/tmp/bitshelf'\n{editor}"))?;
