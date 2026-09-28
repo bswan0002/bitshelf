@@ -153,8 +153,11 @@ After the maintainer says to publish:
    checksums and generates the formula. It refuses unpublished/prerelease tags,
    downgrades and different formula bytes for the same version. A byte-identical
    retry is a no-op. No release assets are rebuilt, uploaded or changed.
-5. From a fresh machine, `brew install bswan0002/tap/bitshelf`, `brew test bitshelf`,
-   verify the matching skill/docs and record the release/tap URLs.
+5. Require the tap workflow's fresh-runner install/test jobs on Apple Silicon,
+   Intel and Linux to pass. They run `brew install bswan0002/tap/bitshelf` and
+   `brew test bswan0002/tap/bitshelf`, check bundled skill/docs, and verify the
+   installed version and source commit against the release tag. Record the
+   release/tap URLs.
    Check the real upgrade path at the next release (the local first-release test
    uses a controlled formula revision). Publish development docs only through
    the separate Documentation workflow's explicit `deploy=true` dispatch.
