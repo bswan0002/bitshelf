@@ -2607,12 +2607,10 @@ fn add_requires_an_explicit_body_source() {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(b"piped content")
-        .unwrap();
+    if let Err(error) = child.stdin.take().unwrap().write_all(b"piped content") {
+        // Rejection may close stdin before this write reaches the child.
+        assert_eq!(error.kind(), std::io::ErrorKind::BrokenPipe);
+    }
     let out = child.wait_with_output().unwrap();
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&out.stderr).contains("--file /dev/null"));
