@@ -34,14 +34,15 @@ bs edit notes/pagination-research --file revised.md
 
 `bs add` needs a body source (`--file`, `--stdin` or `--interactive`). `bs completion install` previews its change and asks before editing your shell startup file; pass `--yes` when running it non-interactively.
 
-Homebrew includes the matching agent skill. Copy it into your agent's global skill directory, for example:
+Install the agent skill globally with Node.js and npm:
 
 ```sh
-mkdir -p ~/.agents/skills
-cp -R "$(brew --prefix bitshelf)/share/bitshelf/skills/bitshelf" ~/.agents/skills/
+npx skills add bswan0002/bitshelf --skill bitshelf --global
 ```
 
-The destination depends on your agent. See [Using with agents](docs/agents.md), or [Install](docs/install.md) for upgrades, completions, archives, and source builds.
+Choose your agents when prompted. Update the executable and skill together;
+see [Using with agents](docs/agents.md) and [release matching](docs/releases.md).
+See [Install](docs/install.md) for upgrades, completions, archives, and source builds.
 
 ## Documentation
 

@@ -30,20 +30,20 @@ brew update
 brew upgrade bitshelf
 ```
 
-Refresh your agent's skill from the newly installed copy so it matches the executable.
+Update your agent's skill alongside the executable; see [release matching](releases.md).
 
 ## Agent skill
 
-Copy Homebrew's bundled skill into your agent's global skill directory, for example:
+With Node.js and npm installed, run:
 
 ```sh
-mkdir -p ~/.agents/skills
-cp -R "$(brew --prefix bitshelf)/share/bitshelf/skills/bitshelf" ~/.agents/skills/
+npx skills add bswan0002/bitshelf --skill bitshelf --global
 ```
 
-The destination depends on your agent. The bundled `VERSION` file identifies the
-CLI release. See [matching releases](releases.md) and [using agents](agents.md).
-Avoid updating the skill from main independently of `bs`.
+Choose your agents when prompted. `--global` makes the skill available across
+repositories. See [using agents](agents.md) and [matching releases](releases.md)
+for installing the skill from a specific release tag. The skill installer does
+not install the `bs` executable.
 
 ## From source
 

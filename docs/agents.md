@@ -4,7 +4,20 @@ Agents and people share the same shelves. The bundled **bitshelf skill** teaches
 
 ## Install the skill
 
-The skill and the `bs` executable are installed separately. Install [`bs`](install.md) first, then copy the `skills/bitshelf/` directory from your exact release archive or matching checkout into your agent's skill directory (for example, `cp -R skills/bitshelf ~/.agents/skills/`; the destination depends on the agent). Homebrew installs a copy under `$(brew --prefix bitshelf)/share/bitshelf/skills/bitshelf/`. The skill supports `bs` 0.1.x and relies on `bs --help` rather than duplicating the command reference; use the copy that matches your executable. See [release matching](releases.md).
+Install [`bs`](install.md) first. With Node.js and npm installed, install the
+skill globally:
+
+```sh
+npx skills add bswan0002/bitshelf --skill bitshelf --global
+```
+
+Choose your agents when prompted. `--global` installs at the user level so the
+skill is available across repositories. The installer configures the selected
+agents; no manual copying is needed.
+
+The skill supports `bs` 0.1.x and relies on `bs --help` rather than duplicating
+the command reference. Update the executable and skill together. To install from
+the exact tag matching your executable, see [release matching](releases.md).
 
 ## What changes afterward
 

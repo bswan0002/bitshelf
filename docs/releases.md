@@ -11,11 +11,18 @@ the release documentation for 0.1.0 is at
 Repository main and the website are explicitly development documentation and may
 describe features absent from an installed release.
 
-Copy the entire matching `skills/bitshelf/` directory into your agent's personal
-or project skill directory. Its `VERSION` file identifies the bundled CLI version.
-A skill alone does not install bs. Do not automatically update a skill from main
-while keeping an older binary. For source development, use the skill from the
-same checkout as the binary. Read the matching changelog before a minor upgrade.
+Use the `npx` installer with the matching tag. For `bs 0.1.0`:
+
+```sh
+npx skills add https://github.com/bswan0002/bitshelf/tree/v0.1.0 --skill bitshelf --global
+```
+
+Choose your agents when prompted. Replace `v0.1.0` with the tag matching
+`bs --version` when installing another release. The skill's `VERSION` file
+identifies the bundled CLI version. Installing a skill does not install `bs`.
+Do not automatically update a skill from main while keeping an older binary.
+For source development, run `npx skills add . --skill bitshelf --global` from
+the same checkout as the binary. Read the matching changelog before a minor upgrade.
 
 Nothing in the local build publishes docs or a skill. The docs workflow builds on
 main but deploys only through manual dispatch with `deploy=true` and the Pages
