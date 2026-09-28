@@ -71,7 +71,7 @@ Design documents imported from Confluence, used as implementation references.
    the environment and prints a Markdown body to stdout. It does not save.
 3. Check the output: headings, tables, code blocks, and links should survive,
    with no login pages or navigation.
-4. Start the body with `Source: <page URL>` and `Last imported: <date>`.
+4. Start the body with `Source: <URL>` and `Last imported: <DATE>`.
 5. Save with a title matching the page title, one `initiative:` tag, and a
    `repo:` tag for each repository the document affects.
 

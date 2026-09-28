@@ -47,7 +47,7 @@ pub struct Aliases {
 pub struct Init {
     #[usage(long)]
     pub store: Option<PathBuf>,
-    /// Editor override, e.g. 'code'; otherwise use VISUAL or EDITOR
+    /// Editor command with quoted arguments, e.g. 'code --wait'; no shell evaluation. Otherwise use VISUAL or EDITOR
     #[usage(long)]
     pub editor: Option<String>,
 }
@@ -91,11 +91,12 @@ pub struct Add {
     pub unset: Vec<String>,
 
     #[usage(complete = complete_add)]
-    /// Identifier: shelf/bit-name (no .md extension)
+    /// Identifier: SHELF/NAME (no .md extension); required unless --interactive prompts for it
     pub id: Option<String>,
     /// Optional descriptive title; the identifier is the display name
     #[usage(long)]
     pub title: Option<String>,
+    /// Comma-separated tags, e.g. rust,project:bitshelf
     #[usage(long)]
     pub tags: Option<String>,
     /// Read a body from a file, or - for stdin (use /dev/null for an empty body)
@@ -203,6 +204,7 @@ pub struct Show {
 /// Open the store, shelves or bits in your editor
 #[derive(Args)]
 pub struct Open {
+    /// Shelf names or SHELF/NAME bit IDs (no .md extension); omit to open the store
     #[usage(complete = complete_open)]
     pub target: Vec<String>,
     #[usage(long)]

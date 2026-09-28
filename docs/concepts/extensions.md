@@ -13,7 +13,7 @@ Choose the smallest mechanism that fits:
 | [Explicit helpers](#explicit-helpers)            | A script or executable, optionally with fixed arguments                      | Global config: an `exec` table          |
 | [PATH commands](#automatic-executable-discovery) | Standalone commands that need no alias registration                          | An executable named `bs-NAME` on PATH   |
 
-All four run when you invoke them as `bs NAME`. There are no automatic lifecycle
+All four run when you invoke them as `bs <NAME>`. There are no automatic lifecycle
 hooks. Use a shortcut for a single built-in, a recipe when you need shell
 composition, and an external program when the workflow deserves its own script.
 
@@ -27,7 +27,7 @@ when that variable is an absolute path):
 [aliases.recent]
 argv = ["list", "--sort", "created", "--reverse"]
 description = "List bits newest-created first"
-usage = "recent [SHELF] [LIST_OPTIONS...]"
+usage = "recent [SHELF] [ARGS]..."
 examples = ["bs recent notes", "bs recent notes --json"]
 ```
 
@@ -81,7 +81,7 @@ Use a table to document a shortcut:
 [aliases.recent]
 argv = ["list", "--sort", "created", "--reverse"]
 description = "List bits newest-created first"
-usage = "recent [SHELF] [LIST_OPTIONS...]"
+usage = "recent [SHELF] [ARGS]..."
 examples = ["bs recent notes", "bs recent notes --json"]
 ```
 
@@ -97,7 +97,7 @@ hello = "printf 'hello\\n'"
 
 [aliases.last]
 description = "List the newest bits by creation time"
-usage = "last <shelf> [--count=N]"
+usage = "last [SHELF] [--count=<COUNT>]"
 examples = ["bs last notes", "bs last notes --count=20"]
 run = "bs list {{ args }} --sort created --reverse | awk -v n={{ count }} 'NR <= n'"
 defaults = { count = "10" }
@@ -116,11 +116,11 @@ The template language deliberately supports only <code v-pre>{{ variable }}</cod
 | `store_path`    | Resolved store directory                                                |
 | `config_path`   | Absolute active configuration path                                      |
 | `bs_executable` | Current executable path                                                 |
-| Any other name  | A named parameter supplied as `--name=VALUE`, or its configured default |
+| Any other name  | A named parameter supplied as `--name=<VALUE>`, or its configured default |
 
 Variable names use ASCII letters, digits, and underscores and cannot begin with a digit. `config` is unavailable as a parameter because `--config` selects bs configuration; use `config_path` for context. Parameters are discovered from the template. Defaults must be strings and may only name referenced, non-context parameters. Missing required values fail before any shell execution. Repeated bindings use the last value. The engine does not validate parameter types: a numeric count is the recipe's responsibility.
 
-`--KEY=VALUE` binds when KEY is a referenced user parameter; otherwise it forwards into `args`. `--KEY VALUE` is not binding syntax. `--` is removed and all following tokens forward literally, bypassing binding. Context variables cannot be overridden by arguments. There is no implicit current shelf.
+`--<KEY>=<VALUE>` binds when KEY is a referenced user parameter; otherwise it forwards into `args`. `--<KEY> <VALUE>` is not binding syntax. `--` is removed and all following tokens forward literally, bypassing binding. Context variables cannot be overridden by arguments. There is no implicit current shelf.
 
 **Place placeholders unquoted in shell argument positions.** Each value is already shell-escaped, including paths. For example, use <code v-pre>printf '%s\n' {{ label }}</code>, not <code v-pre>printf '%s\n' "{{ label }}"</code>. Trusted recipe authors must not place substitutions in shell quotes, comments, heredocs, arithmetic, or other code contexts, or re-evaluate supplied values with `eval`/`sh -c`. Escaping preserves data arguments; it is not a sandbox for arbitrary shell programs. Templates are rendered once; there are no filters, indexing, loops, raw blocks, or multi-step pipeline tables.
 
@@ -130,7 +130,7 @@ Recipes use `/bin/bash --noprofile --norc -e -o pipefail -c`. `BASH_ENV` is remo
 
 Recipes inherit the caller's working directory and standard streams. Shell changes such as `cd` or `export` do not change the parent shell. A shell function named `bs` routes nested calls through `BS_EXECUTABLE`; `BS_CONFIG` preserves the selected config. The function appears in rendered previews. Explicit `command bs` or a separately invoked program can bypass that function.
 
-`bs RECIPE --help` shows the definition without executing it. To forward a literal help flag, use `bs RECIPE -- --help`. Other flags, including `--json` and `--dry-run`, have no built-in recipe semantics unless bound/forwarded by the recipe. Recipes own their output contract and side effects. Avoid recursive recipes.
+`bs <RECIPE> --help` shows the definition without executing it. To forward a literal help flag, use `bs <RECIPE> -- --help`. Other flags, including `--json` and `--dry-run`, have no built-in recipe semantics unless bound/forwarded by the recipe. Recipes own their output contract and side effects. Avoid recursive recipes.
 
 ## Explicit helpers
 
@@ -140,7 +140,7 @@ Register an executable under any command name, with optional fixed arguments:
 [aliases.tickets]
 exec = ["python3", "/absolute/path/to/tickets.py", "--team", "platform"]
 description = "Import team tickets into the configured shelf"
-usage = "tickets ISSUE_KEY"
+usage = "tickets <ISSUE_KEY>"
 examples = ["bs tickets TEAM-123"]
 ```
 
@@ -162,11 +162,11 @@ This sidecar contains documentation only, not executable definitions or configur
 
 ### Helper and executable process contract
 
-- Arguments, including `--help`, `--json`, and the literal `--` separator, forward unchanged, except `--config PATH` / `--config=PATH` before the separator: these select the bs configuration and are consumed. A preceding global `--json` is forwarded too.
+- Arguments, including `--help`, `--json`, and the literal `--` separator, forward unchanged, except `--config <CONFIG>` / `--config=<CONFIG>` before the separator: these select the bs configuration and are consumed. A preceding global `--json` is forwarded too.
 - `BS_CONFIG` contains the absolute selected configuration path. Config resolution is explicit `--config` → `BS_CONFIG` → XDG default.
 - `BS_EXECUTABLE` contains the running bs executable path. Helpers should call `"$BS_EXECUTABLE"` rather than assume another `bs` on PATH is the same version.
 - Working directory and standard streams are inherited. Helpers own help, JSON support, side effects, and output. Exit codes propagate; signal termination maps to 1.
-- `bs HELPER --help` **executes the helper**. Use `bs aliases show HELPER` for safe inspection instead.
+- `bs <HELPER> --help` **executes the helper**. Use `bs aliases show <HELPER>` for safe inspection instead.
 
 There are no automatic lifecycle hooks, repo-config approvals, or sandboxing. Dynamic extension-name/argument completion is not implemented; built-in completion continues to work. For larger workflows, use an external script rather than growing shell templates into an orchestration system.
 

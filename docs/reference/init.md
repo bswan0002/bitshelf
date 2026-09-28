@@ -7,5 +7,5 @@ Set up a store and configuration without overwriting existing configuration
 
 ## Flags
 - **`--store <STORE>`**
-- **`--editor <EDITOR>`** — Editor override, e.g. 'code'; otherwise use VISUAL or EDITOR
+- **`--editor <EDITOR>`** — Editor command with quoted arguments, e.g. 'code --wait'; no shell evaluation. Otherwise use VISUAL or EDITOR
 - **`-h --help`** — Print help

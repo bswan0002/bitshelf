@@ -9,13 +9,13 @@ printf '%s' 'An exact prompt' | bs add tmp/original-prompt --file -
 bs add notes/draft --interactive
 ```
 
-- `add` requires a body source: `--file PATH` reads a **body**; `--file -` and `--stdin` read stdin; `--interactive` opens a draft. `--file` and `--stdin` are mutually exclusive. Without a source, `add` fails rather than silently saving an empty body; use `--file /dev/null` for an intentionally empty bit.
+- `add` requires a body source: `--file <FILE>` reads a **body**; `--file -` and `--stdin` read stdin; `--interactive` opens a draft. `--file` and `--stdin` are mutually exclusive. Without a source, `add` fails rather than silently saving an empty body; use `--file /dev/null` for an intentionally empty bit.
 - The body is preserved byte-for-byte for valid UTF-8 Markdown, including CRLF line endings and a missing final newline.
 - Input is a body, not a frontmatter document to merge. `bs` writes the frontmatter: optional title and tags, `created` and `updated` set to the creation time (UTC), and `expires` on retention shelves.
 - ID collisions fail; choose a different ID.
-- `--title TEXT` adds optional descriptive metadata. It's required only when the shelf requires `title`, and a supplied title must be nonempty. The ID remains the display name, and changing a title never renames a bit.
+- `--title <TITLE>` adds optional descriptive metadata. It's required only when the shelf requires `title`, and a supplied title must be nonempty. The ID remains the display name, and changing a title never renames a bit.
 - `--tags a,b` sets tags, checked against the shelf's [tag rules](shelves.md#namespaced-tag-rules).
-- `--set KEY=VALUE` (literal string), `--set-json KEY=JSON` (typed value) and `--unset KEY` change other frontmatter fields on `add`, `edit` and `move`. See [Metadata mutations](metadata.md).
+- `--set <KEY=VALUE>` (literal string), `--set-json <KEY=JSON>` (typed value) and `--unset <KEY>` change other frontmatter fields on `add`, `edit` and `move`. See [Metadata mutations](metadata.md).
 - Invalid metadata is rejected before saving.
 
 ## Editing
@@ -29,10 +29,10 @@ bs edit notes/release-checklist --title 'New title' --tags release,checklist --j
 
 - `--file` (including `--file -`) and `--stdin` take **body-only** input, like `add`, and are mutually exclusive.
 - `--title` and `--tags` replace those fields. An empty tags argument clears tags. `--set`, `--set-json` and `--unset` work as on `add`.
-- If `created` or `updated` holds an invalid value, edits fail until it's repaired: `bs edit ID --unset updated` (or `created`) removes it without an editor. Valid dates stay reserved.
+- If `created` or `updated` holds an invalid value, edits fail until it's repaired: `bs edit <ID> --unset updated` (or `created`) removes it without an editor. Valid dates stay reserved.
 - Unrelated metadata and expiration are preserved; editing never extends retention.
 - Body/user-metadata changes automatically stamp `updated`, clamped to the original value if the clock moves backward. No-op edits preserve dates and missing dates. Explicit valid timestamp changes/removals in an editor draft are honored, including an explicit `updated` override. See [Timestamps](timestamps.md).
-- With no mutation flags, `bs edit ID` opens a temporary draft in your editor and waits. The original is replaced only after the editor exits successfully, the metadata validates, and a check confirms the original didn't change concurrently. A failed edit keeps the draft and reports its path.
+- With no mutation flags, `bs edit <ID>` opens a temporary draft in your editor and waits. The original is replaced only after the editor exits successfully, the metadata validates, and a check confirms the original didn't change concurrently. A failed edit keeps the draft and reports its path.
 - JSON mode requires explicit mutation flags and never launches an editor.
 
 Editing files directly in any editor is also supported. Markdown is authoritative: manage dates yourself for external edits. There is no watcher or sync.

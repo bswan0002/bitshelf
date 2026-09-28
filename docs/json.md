@@ -2,24 +2,24 @@
 
 `--json` is global. For list/search, it conflicts with `--long`, `--paths`, and `--null`. Successful structured output is one document on stdout; diagnostics go to stderr. List/search/shelf-list use `{results, errors, complete}`; results is an array, including `[]`. Validation/prune use per-item arrays. Paths are absolute. Nullable fields are emitted as `null`, not omitted. Consumers should tolerate new fields.
 
-| Command | Result |
-| --- | --- |
-| `init` | `{config, store}` |
-| `shelf list` | `{results: [{name, path, description, configured, missing, discoverable, guidance_available, required, retention}], errors, complete}` |
-| `shelf add` | `{name, path}` |
-| `add` | `{id, path}` |
-| `move` | `{from, id, path, dry_run}` (destination ID/path; also used by move aliases) |
-| `aliases` | Object mapping available names to extension entries (see below) |
-| `aliases show NAME` | One extension entry |
-| `aliases dry-run NAME -- ARGS...` | `{executable, argv, command, environment, unset_environment}`; render-only, never executes |
-| `edit` | `{id, path, changed}` |
-| `list` | `{results: [{id, path, title, tags, metadata, errors}], errors, complete}` |
-| `search` | `{results: [{id, path, title, tags, metadata, errors, matches: {fields, score}}], errors, complete}` |
-| `show` | `{id, path, content}` (complete Markdown by default; body only with `--body`) |
-| `context` | `{name, path, bits_path, description, discoverable, required, tag_rules, retention, guidance}` |
-| `open` | `{paths: [...], opened: true}` after editor success |
-| `validate` | `[{id, path, errors, valid}]` |
-| `prune` | `[{id, path, status, error?}]` |
+| Command                               | Result                                                                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`                                | `{config, store}`                                                                                                                      |
+| `shelf list`                          | `{results: [{name, path, description, configured, missing, discoverable, guidance_available, required, retention}], errors, complete}` |
+| `shelf add`                           | `{name, path}`                                                                                                                         |
+| `add`                                 | `{id, path}`                                                                                                                           |
+| `move`                                | `{from, id, path, dry_run}` (destination ID/path; also used by move aliases)                                                           |
+| `aliases`                             | Object mapping available names to extension entries (see below)                                                                        |
+| `aliases show NAME`                   | One extension entry                                                                                                                    |
+| `aliases dry-run <NAME> -- [ARGS]...` | `{executable, argv, command, environment, unset_environment}`; render-only, never executes                                             |
+| `edit`                                | `{id, path, changed}`                                                                                                                  |
+| `list`                                | `{results: [{id, path, title, tags, metadata, errors}], errors, complete}`                                                             |
+| `search`                              | `{results: [{id, path, title, tags, metadata, errors, matches: {fields, score}}], errors, complete}`                                   |
+| `show`                                | `{id, path, content}` (complete Markdown by default; body only with `--body`)                                                          |
+| `context`                             | `{name, path, bits_path, description, discoverable, required, tag_rules, retention, guidance}`                                         |
+| `open`                                | `{paths: [...], opened: true}` after editor success                                                                                    |
+| `validate`                            | `[{id, path, errors, valid}]`                                                                                                          |
+| `prune`                               | `[{id, path, status, error?}]`                                                                                                         |
 
 `metadata` is a JSON representation of YAML frontmatter, including unknown fields; unsupported YAML values produce explicit errors (see [frontmatter](concepts/frontmatter.md)). `errors` is an array of diagnostic strings. `title` is the nonempty title metadata string, or `null` when absent/invalid; it is not synthesized from the filename. Use `id` for display and identity. Search/list include accessible invalid bits with per-bit errors, preserve healthy results, set complete=false, emit scope errors `{path, error}`, and exit 1. Unreadable/unsupported paths are scope errors, never fabricated empty bits.
 

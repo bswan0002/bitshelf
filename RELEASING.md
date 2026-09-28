@@ -16,7 +16,7 @@ review an annotated tag matching the intended commit; lightweight tags are
 refused. GitHub runs the workflow definition from the dispatch ref, so dispatch
 from `main` or from the release tag itself (any other ref is refused). Sources,
 release scripts and archives always come from the tag's commit: preflight
-resolves `refs/tags/<tag>` to one commit SHA, and every later job checks out that
+resolves `refs/tags/<TAG>` to one commit SHA, and every later job checks out that
 SHA rather than re-resolving the tag. Each archive's BUILD-INFO.json
 `source_commit` must equal it, and publication re-checks through the GitHub API
 that the remote tag still points at it immediately before creating and before
@@ -87,17 +87,17 @@ Build with `MACOSX_DEPLOYMENT_TARGET=15.0` on macOS; the package smoke test
 requires the binary's own `LC_BUILD_VERSION` minos to be 15.0 and BUILD-INFO's
 `binary_sha256` to match the packaged `bs`. Release builds run without a Rust
 build cache. Generate docs with
-`BS=target/<target>/release/bs bash scripts/generate-docs.sh`. From a clean checkout:
+`BS=target/<TARGET>/release/bs bash scripts/generate-docs.sh`. From a clean checkout:
 
 ```sh
-python3.12 scripts/package.py --tag v0.1.0 --target <target> --binary target/<target>/release/bs
-python3.12 scripts/smoke-package.py dist/archives/bitshelf-v0.1.0-<target>.tar.gz --tag v0.1.0 --target <target> --commit "$(git rev-parse HEAD)"
+python3.12 scripts/package.py --tag v0.1.0 --target <TARGET> --binary target/<TARGET>/release/bs
+python3.12 scripts/smoke-package.py dist/archives/bitshelf-v0.1.0-<TARGET>.tar.gz --tag v0.1.0 --target <TARGET> --commit "$(git rev-parse HEAD)"
 ```
 
 Production formula generation requires the real checksums for all three targets.
-For local testing only, `homebrew-formula.py --base-url file://<absolute-directory>
+For local testing only, `homebrew-formula.py --base-url file://<ABSOLUTE_DIRECTORY>
 --local-test` accepts a partial real artifact set and fails on unavailable
-platforms. `test-homebrew.py <formula.rb>` creates and removes a temporary local
+platforms. `test-homebrew.py <FORMULA_PATH>` takes a Ruby formula file and creates and removes a temporary local
 tap; it refuses to interfere with an existing bitshelf keg. It exercises install,
 test, a formula-revision upgrade, retest and uninstall. See
 [verification](docs/verification.md) for actual local evidence and remaining

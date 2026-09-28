@@ -14,13 +14,13 @@ A **store** is a directory of **shelves**. Each shelf is a directory containing 
     └── import.py
 ```
 
-Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones you create in a file manager. Other root-level entries that aren't directories, including symlinks to files, are ignored; a symlink to a directory is refused rather than treated as a shelf. There is no global registry: deleting a shelf's directory removes it from discovery. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory, and `bs shelf add NAME` repairs it.
+Shelves are non-hidden top-level directories containing `bits/` or `bs.toml`, including ones you create in a file manager. Other root-level entries that aren't directories, including symlinks to files, are ignored; a symlink to a directory is refused rather than treated as a shelf. There is no global registry: deleting a shelf's directory removes it from discovery. A shelf with `bs.toml` but no `bits/` is reported as missing its bits directory, and `bs shelf add [NAME]` repairs it.
 
 Everything in a shelf other than bits, `bs.toml`, and `SHELF.md` is ignored by `bs` and preserved by content operations. The hidden store-level `.bitshelf/` directory holds independent writer locking; it contains no required content history.
 
 ## Bits and identifiers
 
-Bits are direct, non-hidden `.md` files inside `bits/`. A bit's ID is `shelf/name`, from `<store>/<shelf>/bits/<name>.md`, without the `.md` suffix or the `bits/` component. There are no nested bits and no separate UUIDs.
+Bits are direct, non-hidden `.md` files inside `bits/`. A bit's ID is `shelf/name`, from `<STORE>/<SHELF>/bits/<NAME>.md`, without the `.md` suffix or the `bits/` component. There are no nested bits and no separate UUIDs.
 
 - Supply IDs directly to `bs add`. Names are never generated from titles.
 - Renaming a file changes its ID immediately.
@@ -53,7 +53,7 @@ recent = ["list", "--sort", "updated", "--reverse"]
 ```
 
 - `bs init --store ~/bitshelf --editor code` sets up non-interactively; with no arguments in a terminal, `bs init` prompts. It creates a default `notes` shelf and never overwrites an existing configuration.
-- Use `--config PATH`, before or after a subcommand, to select a different configuration and store.
+- Use `--config <CONFIG>`, before or after a subcommand, to select a different configuration and store.
 - `bs init` writes the store as an absolute path. When you edit the file yourself, a leading `~/` expands to `HOME`, and other relative paths resolve against the configuration file's directory. Relative `init --store` values resolve the same way before they're written.
 - Invalid or unknown settings fail clearly. To remove an editor setting, edit the TOML directly.
 - See [editors](editing.md#editors) and [Extending bitshelf](extensions.md) for those settings.
@@ -75,7 +75,7 @@ required = ["title", "tags"]
 | `discoverable` | `false` leaves the shelf out of default list/search and `open --pick`. See [the archive recipe](../recipes/archive.md) |
 | `[tag_rules.*]` | Namespaced tag restrictions (below) |
 
-`bs shelf add NAME [--description …] [--required …] [--retention …]` creates `bits/` and writes `bs.toml`, preserving existing contents and settings except those you pass. Edit the TOML directly to remove retention, change `discoverable`, or manage tag rules. Running it on an existing shelf with no new settings leaves `bs.toml` untouched; when settings change, existing comments and formatting are preserved. A shelf without `bs.toml` uses defaults. In `bs shelf list --json`, `configured` means `bs.toml` exists and `missing` means `bits/` is absent or not a directory.
+`bs shelf add [NAME] [--description <DESCRIPTION>] [--required <REQUIRED>] [--retention <RETENTION>]` creates `bits/` and writes `bs.toml`, preserving existing contents and settings except those you pass. `--required` takes comma-separated built-in field names (for example, `title,tags`), not a TOML array. `--retention` takes a positive integer from 1 to 36500 followed by a literal `d` (for example, `14d`), not hours or fractional days. Edit the TOML directly to remove retention, change `discoverable`, or manage tag rules. Running it on an existing shelf with no new settings leaves `bs.toml` untouched; when settings change, existing comments and formatting are preserved. A shelf without `bs.toml` uses defaults. In `bs shelf list --json`, `configured` means `bs.toml` exists and `missing` means `bits/` is absent or not a directory.
 
 ## Namespaced tag rules
 
@@ -98,7 +98,7 @@ tags: ["project:bitshelf", "rust", "kind:guide"]
 - `allowed` is mandatory, nonempty, and free of duplicates. Namespace names and values must be nonempty and contain no whitespace, control characters, colons, or commas. Unknown rule settings are rejected.
 - `required = ["tags"]` checks only that the field exists; namespace requirements are separate.
 
-`bs add` and `bs edit` reject invalid tags. Files edited directly remain readable, and `bs validate` reports their violations. Changing rules never rewrites bits. `bs context SHELF --json` exposes the complete `tag_rules`, so authors can check requirements before writing. Filter with `bs list SHELF --tag project:bitshelf`.
+`bs add` and `bs edit` reject invalid tags. Files edited directly remain readable, and `bs validate` reports their violations. Changing rules never rewrites bits. `bs context <SHELF> --json` exposes the complete `tag_rules`, so authors can check requirements before writing. Filter with `bs list [SHELF] --tag project:bitshelf`.
 
 ## Shelf guidance: `SHELF.md`
 

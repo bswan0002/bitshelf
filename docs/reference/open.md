@@ -6,7 +6,7 @@
 Open the store, shelves or bits in your editor
 
 ## Arguments
-- **`[TARGET]…`**
+- **`[TARGET]…`** — Shelf names or SHELF/NAME bit IDs (no .md extension); omit to open the store
 
 ## Flags
 - **`--pick`**

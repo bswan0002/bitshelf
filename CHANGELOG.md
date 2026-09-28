@@ -3,7 +3,7 @@
 ## 0.1.0 — First public release candidate (not yet published)
 
 - Reject attached values on value-less flags (including `--yes=false`) with exit 2 before mutations. Recognize BOM-prefixed frontmatter without nesting it on edits. Reject ambiguous binary, leading-zero and underscore-separated integers rather than silently coercing metadata.
-- `bs add` requires `--file`, `--stdin` or `--interactive` instead of silently saving an empty body. IDs and shelf names must match stored names exactly; case/normalization variants are refused with the stored name. `bs edit ID --unset created|updated` removes an invalid reserved date without an editor.
+- `bs add` requires `--file`, `--stdin` or `--interactive` instead of silently saving an empty body. IDs and shelf names must match stored names exactly; case/normalization variants are refused with the stored name. `bs edit <ID> --unset created|updated` removes an invalid reserved date without an editor.
 - Prune considers only retention shelves: invalid bits on permanent shelves no longer make it fail, and each bit gets at most one row. Root-level links to files are ignored by discovery. Closed output pipes no longer mask failing exit statuses.
 - `bs shelf add` leaves an unchanged `bs.toml` untouched and edits it in place, preserving comments, and refuses to recreate a missing store. Retention is limited to plain positive days up to `36500d`; blank names, non-regular bit files and empty or relative `XDG_CONFIG_HOME` are handled explicitly.
 

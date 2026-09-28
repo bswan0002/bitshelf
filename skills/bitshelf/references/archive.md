@@ -9,7 +9,7 @@ built-in bit state. The names below are a recipe, not reserved identifiers.
 1. Inspect `bs shelf list --json` and `bs aliases --json`. Confirm the destination
    shelf and alias names; reuse an existing matching setup rather than duplicating
    it. Check `bs move --help` for support before changing configuration. Keep the
-   same `--config PATH` override on every command when one is in use.
+   same `--config <CONFIG>` override on every command when one is in use.
 2. Locate and read the active global configuration: the explicit `--config` path,
    otherwise `BS_CONFIG`, then `$XDG_CONFIG_HOME/bitshelf/config.toml`, defaulting to
    `~/.config/bitshelf/config.toml`. Preserve unrelated settings and aliases. If an
@@ -35,7 +35,7 @@ built-in bit state. The names below are a recipe, not reserved identifiers.
    [aliases.archive]
    argv = ["move", "{id}", "archive/{shelf}.{name}", "--set", "moved_from={id}"]
    description = "Move a bit into archive and record its original ID"
-   usage = "archive ID [--dry-run] [--json]"
+   usage = "archive <ID> [--dry-run] [--json]"
    examples = ["bs archive notes/checklist --dry-run --json"]
    ```
 

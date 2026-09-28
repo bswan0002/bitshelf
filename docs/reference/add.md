@@ -6,14 +6,14 @@
 Save a new bit, preserving the supplied body verbatim. Requires --file, --stdin or --interactive
 
 ## Arguments
-- **`[ID]`** — Identifier: shelf/bit-name (no .md extension)
+- **`[ID]`** — Identifier: SHELF/NAME (no .md extension); required unless --interactive prompts for it
 
 ## Flags
 - **`--set <SET>`** — Set a literal string KEY=VALUE (repeatable)
 - **`--set-json <SET_JSON>`** — Set a typed JSON value KEY=JSON (repeatable)
 - **`--unset <UNSET>`** — Remove a metadata field (repeatable)
 - **`--title <TITLE>`** — Optional descriptive title; the identifier is the display name
-- **`--tags <TAGS>`**
+- **`--tags <TAGS>`** — Comma-separated tags, e.g. rust,project:bitshelf
 - **`--file <FILE>`** — Read a body from a file, or - for stdin (use /dev/null for an empty body)
 - **`--stdin`** — Read the body from standard input
 - **`--interactive`** — Prompt for missing details and write the body in your editor
