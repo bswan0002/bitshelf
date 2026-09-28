@@ -1,8 +1,8 @@
 # Releasing
 
-No public release has been authorized by the current preparation work. Do not tag,
-push release assets, publish a website or update a remote tap until the maintainer
-explicitly requests publication.
+Release preparation does not authorize publication. Tagging, publishing release
+assets, deploying the website and updating the remote tap require an explicit
+maintainer request.
 
 Release tooling requires Python 3.12. The CLI version derives from Cargo; update
 Cargo.toml/Cargo.lock and the matching nonempty CHANGELOG section together.
@@ -103,17 +103,12 @@ test, a formula-revision upgrade, retest and uninstall. See
 [verification](docs/verification.md) for actual local evidence and remaining
 native-platform gates.
 
-## First-release hold and exact next steps
+## Publication checklist
 
-No public release, tag, tap or documentation site has been published yet; local
-evidence is in [verification](docs/verification.md).
-
-Read-only inspection during preparation found only the `github-pages`
-environment, no repository-level variables/secrets, and no accessible
-`bswan0002/homebrew-tap` repository. An inaccessible repository is not proof that
-it does not exist. Before any `publish=true` dispatch, confirm/create that
-intended personal tap and configure the following; no credentials should be
-committed:
+Verification evidence is recorded in [verification](docs/verification.md).
+Before any `publish=true` dispatch, confirm the intended personal tap
+`bswan0002/homebrew-tap` and the following configuration; no credentials should
+be committed:
 
 - GitHub immutable releases enabled for the repository, so published assets and
   their tag cannot be changed. The tap workflow refuses non-immutable releases.

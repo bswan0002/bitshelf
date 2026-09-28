@@ -7,10 +7,10 @@ This walks through the core loop: keep something, find it from another context, 
 With [Homebrew](https://brew.sh) installed:
 
 ```sh
-brew install bswan0002/tap/bitshelf
+brew install bswan0002/tap/bitshelf && bs completion install
 ```
 
-Homebrew installs the executable, man page, shell completions, and matching docs and skill. If your shell does not already load Homebrew completions, run `bs completion install`; it previews changes and asks first. Start a new shell afterward. See [Install](install.md) for upgrades and source builds.
+Homebrew installs the executable, man page, shell completions, and matching docs and skill. The completion installer previews changes and asks before editing your shell startup file. Start a new shell afterward. See [Install](install.md) for upgrades and source builds.
 
 ## 2. Install the agent skill globally (optional, strongly recommended)
 

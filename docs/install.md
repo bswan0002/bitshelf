@@ -5,15 +5,14 @@
 With [Homebrew](https://brew.sh) installed, use the personal tap:
 
 ```sh
-brew install bswan0002/tap/bitshelf
+brew install bswan0002/tap/bitshelf && bs completion install
 ```
 
 The executable is `bs`. The formula includes a man page, bash/zsh/fish completions,
 and matching docs and agent skill. Running `bs` needs neither Rust nor Node.js.
 See [GitHub Releases](https://github.com/bswan0002/bitshelf/releases) for available versions.
 
-If your shell does not already load Homebrew's completions, run
-`bs completion install`. It previews changes and asks before editing your shell
+`bs completion install` previews changes and asks before editing your shell
 startup file; start a new shell afterward. See [Shell completion](concepts/completion.md)
 for shell overrides, dry runs, and uninstalling.
 

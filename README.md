@@ -17,22 +17,10 @@ Saving and retrieving are deliberate. This isn't automatic agent memory.
 With [Homebrew](https://brew.sh) installed:
 
 ```sh
-brew install bswan0002/tap/bitshelf
-bs init --store ~/bitshelf
+brew install bswan0002/tap/bitshelf && bs completion install
 ```
 
-Keep something, then find it from another context:
-
-```sh
-printf '# Pagination research\n\nCursor pagination is stable under inserts.\n' > findings.md
-bs add notes/pagination-research --tags api --file findings.md
-bs search 'pagination api'   # terms can match across fields; relevance-ranked
-bs show notes/pagination-research --body
-printf '# Pagination research\n\nUse opaque cursors.\n' > revised.md
-bs edit notes/pagination-research --file revised.md
-```
-
-`bs add` needs a body source (`--file`, `--stdin` or `--interactive`). `bs completion install` previews its change and asks before editing your shell startup file; pass `--yes` when running it non-interactively.
+The completion installer previews its change and asks before editing your shell startup file. Start a new shell afterward; pass `--yes` when running it non-interactively.
 
 Install the agent skill globally with Node.js and npm:
 
@@ -42,6 +30,20 @@ npx skills add bswan0002/bitshelf --skill bitshelf --global
 
 Choose your agents when prompted. Update the executable and skill together;
 see [Using with agents](docs/agents.md) and [release matching](docs/releases.md).
+
+Create your store, keep something, then find it from another context:
+
+```sh
+bs init --store ~/bitshelf
+printf '# Pagination research\n\nCursor pagination is stable under inserts.\n' > findings.md
+bs add notes/pagination-research --tags api --file findings.md
+bs search 'pagination api'   # terms can match across fields; relevance-ranked
+bs show notes/pagination-research --body
+printf '# Pagination research\n\nUse opaque cursors.\n' > revised.md
+bs edit notes/pagination-research --file revised.md
+```
+
+`bs add` needs a body source (`--file`, `--stdin` or `--interactive`).
 See [Install](docs/install.md) for upgrades, completions, archives, and source builds.
 
 ## Documentation

@@ -1,4 +1,44 @@
-# Pre-release verification
+# Verification
+
+## First public release
+
+The annotated `v0.1.0` tag pins source commit
+`d39a317bdb31cf80f0100f977228cbafce66418e`.
+[Final source CI](https://github.com/bswan0002/bitshelf/actions/runs/36374064023)
+passed on native Apple Silicon, Intel and Linux, including the Linux MSRV job
+and documentation checks. The final terminal fix keeps input in raw mode for
+the whole prompt and verifies terminal restoration after submission and
+cancellation.
+
+[The release run](https://github.com/bswan0002/bitshelf/actions/runs/36374316924)
+passed clean-source builds, archive extraction/smoke checks and Homebrew
+install/test/controlled revision-upgrade/test/uninstall on all three native
+platforms. Before approving publication, the complete `verified-release`
+artifact was downloaded and checked against SHA256SUMS; all BUILD-INFO source
+commits, clean-source flags, packaged binary hashes, skill versions, install
+documentation and notices matched the tagged source.
+
+[GitHub release v0.1.0](https://github.com/bswan0002/bitshelf/releases/tag/v0.1.0)
+is public and immutable. Publication initially stopped because an immediate
+release-inventory read did not see the newly created empty draft. Retrying only
+the failed publication job in the same run succeeded using the reviewed
+artifacts; no tag moved and no assets were rebuilt or overwritten.
+
+[The tap workflow](https://github.com/bswan0002/bitshelf/actions/runs/36375564703)
+published the [Homebrew formula](https://github.com/bswan0002/homebrew-tap/blob/272e491f25d06b9b505f76a2823bc9d5ac66b95a/Formula/bitshelf.rb)
+from those immutable assets. Fresh Apple Silicon, Intel and Linux runners passed
+`brew install bswan0002/tap/bitshelf` and `brew test bswan0002/tap/bitshelf`,
+including bundled resources, version and source-commit verification. A genuine
+upgrade from an earlier public release remains a next-release check; the first
+release exercised a controlled formula-revision upgrade.
+
+Developer ID signing, notarization, independent attestations and quarantined
+browser-download testing remain deferred as described in [signing](signing.md).
+
+The sections below preserve historical preparation evidence. Statements about
+unexecuted remote checks or unpublished artifacts describe those earlier passes.
+
+## Test coverage
 
 The safety regression suite uses temporary stores only. `cargo test --locked` covers strict YAML corpus/JSON, exact bodies, command-local dates/import/restore, ID round trips, incomplete shelf discovery, destination tag replacement, prune conflicts and partial outcomes, symlinks, editor conflicts/recovery, real terminals, shell completion and extensions. `tests/extensions.rs` covers recipe binding/quoting, render-only inspection, nested configuration, pipeline failures, PATH precedence, sidecar metadata, and discovery before initialization. `tests/locking.rs` tests two competing processes and release after SIGINT/SIGKILL.
 

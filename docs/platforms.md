@@ -22,10 +22,10 @@ Inside the checkout, rustup still selects 1.98.1 unless explicitly overridden.
 Both macOS builds set MACOSX_DEPLOYMENT_TARGET=15.0, and the package smoke test
 requires the binary's own `LC_BUILD_VERSION` minimum to be 15.0 (the Homebrew
 formula also requires Sequoia). That minimum is not a claim of testing every
-15.x release. The local ARM archive passed on macOS 15.7.4 ARM64; the Intel archive passed
-under Rosetta, not on native Intel hardware. Native Intel and Linux claims become verified only
-when their release matrix package tests pass; they are publication gates, not
-inferred from a successful ARM build. Linux packages must run on the 22.04 build
+15.x release. The `v0.1.0` release matrix passed archive smoke tests and Homebrew
+install/test/revision-upgrade/test/uninstall on native Apple Silicon and Intel
+macOS 15.7.9 runners and Ubuntu 22.04 x86-64 with glibc 2.35. See
+[verification evidence](verification.md). Linux packages must run on the 22.04 build
 runner; do not advertise older glibc compatibility. Windows, Linux ARM and older
 macOS releases are deferred.
 

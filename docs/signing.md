@@ -13,8 +13,8 @@ Downloaded macOS binaries may be blocked. Do not advertise trusted/frictionless
 browser installation or recommend disabling Gatekeeper, removing quarantine
 recursively, or indiscriminately overriding security checks. Source builds from
 a reviewed tag are the fallback. Release notes and installation docs carry this
-limitation. Homebrew installation tests use local archives and do not stand in
-for a quarantined-browser-download test.
+limitation. Homebrew installation tests cover the archives and published tap;
+they do not stand in for a quarantined-browser-download test.
 
 Each archive contains BUILD-INFO.json (source commit, toolchain, runner/SDK and
 lock hashes); SHA256SUMS covers immutable archives. Checksums detect corruption
