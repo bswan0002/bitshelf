@@ -1,8 +1,10 @@
 # Match documentation and skill to your executable
 
 Run `bs --version`. The archive for that exact version contains `docs/` and
-`skills/bitshelf/`; use those copies for the matching contract and agent guidance.
-Homebrew installs the same snapshots under `$(brew --prefix bitshelf)/share/bitshelf`.
+`skills/bitshelf/`; these snapshots record the matching contract and agent guidance.
+Homebrew bundles the same files under `$(brew --prefix bitshelf)/share/bitshelf`.
+Bundling the skill files does not configure an agent to use them; install the
+skill for your agents with the `npx` command below.
 `BUILD-INFO.json` records the exact source commit and package build inputs.
 
 The corresponding Git tag is `v` followed by the executable version. For example,

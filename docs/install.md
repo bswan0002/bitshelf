@@ -9,7 +9,7 @@ brew install bswan0002/tap/bitshelf && bs completion install
 ```
 
 The executable is `bs`. The formula includes a man page, bash/zsh/fish completions,
-and matching docs and agent skill. Running `bs` needs neither Rust nor Node.js.
+and release documentation. Running `bs` needs neither Rust nor Node.js.
 See [GitHub Releases](https://github.com/bswan0002/bitshelf/releases) for available versions.
 
 `bs completion install` previews changes and asks before editing your shell
@@ -33,7 +33,7 @@ Update your agent's skill alongside the executable; see [release matching](relea
 
 ## Agent skill
 
-With Node.js and npm installed, run:
+Install the skill separately for your agents. With Node.js and npm installed, run:
 
 ```sh
 npx skills add bswan0002/bitshelf --skill bitshelf --global
