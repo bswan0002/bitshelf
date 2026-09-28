@@ -220,7 +220,7 @@ const recipes = [
           <li v-for="rc in recipes" :key="rc.link">
             <a :href="rc.link">
               <span class="recipe-title">{{ rc.title }}</span>
-              <span class="recipe-body">{{ rc.body }} <span aria-hidden="true">→</span></span>
+              <span class="recipe-body">{{ rc.body }}&nbsp;<span aria-hidden="true">→</span></span>
             </a>
           </li>
         </ul>
