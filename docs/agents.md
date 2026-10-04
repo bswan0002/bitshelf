@@ -36,11 +36,11 @@ Saving and retrieving happen **when you ask**. The skill doesn't make agents rec
 Retrieval follows a progression, loading only what's needed:
 
 1. **Discover shelves.** `bs shelf list --json` returns a completeness envelope whose `results` array contains each shelf's name, description, requirements, and whether it has guidance. Good descriptions help agents choose the right shelf.
-2. **Load guidance when it's relevant.** `bs context <SHELF> --json` returns the shelf's full `SHELF.md` text, requirements, and tag rules. Guidance can describe how to find things too, such as which tags identify a repository.
-3. **Find candidates.** `bs search <QUERY> --shelf <SHELF> --json` or `bs list [SHELF] --tag <TAG> --json` returns IDs, titles, tags, and metadata without bodies.
+2. **Read guidance before choosing a lookup.** For a shelf with guidance, `bs context <SHELF> --json` returns the full `SHELF.md` text, requirements, and tag rules. Guidance can describe how to find things, such as which tags identify a repository or which helper to run, so the agent reads it in its own step before searching.
+3. **Find candidates.** `bs search <QUERY> --shelf <SHELF> --long` or `bs list [SHELF] --tag <TAG> --long` prints one ID and title per line, without bodies. When the agent needs structured fields, it pipes `--json` output through `jq` to keep the result small.
 4. **Retrieve selected content.** `bs show <ID> --json` (or `--body`) reads only the chosen bits.
 
-Use multi-term queries such as `bs search 'dashboard filters' --shelf design-docs --json`. Terms can match across fields; results are relevance-ranked and include `matches.fields` and `matches.score` to help select candidates. Narrow with `--tag` or `!exclusions`, preserve phrases with double quotes inside the query, and broaden sparse results with `--any`. See [search semantics](concepts/finding.md#search). Ranking is lexical, not semantic; the agent still decides which material is relevant to your request.
+Use multi-term queries such as `bs search 'dashboard filters' --shelf design-docs --long`. Terms can match across fields, and results are relevance-ranked. Narrow with `--tag` or `!exclusions`, preserve phrases with double quotes inside the query, and broaden sparse results with `--any`. See [search semantics](concepts/finding.md#search). Ranking is lexical, not semantic; the agent still decides which material is relevant to your request.
 
 ## How an agent saves things
 
